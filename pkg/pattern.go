@@ -31,43 +31,59 @@ func InfiniteRainbow(delay time.Duration) {
 		delay = time.Nanosecond
 	}
 
+	var currentColor string
+	var currentColorOffset int
+
+	currentColors := GetCurrentColors()
+	for _, v := range currentColors {
+		// assume all groups are set to the same color for now and simply grab the first one
+		currentColor = v
+		break
+	}
+
 	colors := make([]string, 0, 6)
+
+	add := func(r, g, b int) {
+		c := RGBColor{r, g, b}
+		ch := c.GetColorInHex()
+		if ch == currentColor {
+			currentColorOffset = len(colors)
+		}
+		colors = append(colors, ch)
+	}
+
 	// generate range of rainbow values
 	for i := 0; i <= 255; i++ {
-		c := RGBColor{255, i, 0}
-		colors = append(colors, c.GetColorInHex())
+		add(255, i, 0)
 	}
 
 	for i := 255; i >= 0; i-- {
-		c := RGBColor{i, 255, 0}
-		colors = append(colors, c.GetColorInHex())
+		add(i, 255, 0)
 	}
 
 	for i := 0; i <= 255; i++ {
-		c := RGBColor{0, 255, i}
-		colors = append(colors, c.GetColorInHex())
+		add(0, 255, i)
 	}
 
 	for i := 255; i >= 0; i-- {
-		c := RGBColor{0, i, 255}
-		colors = append(colors, c.GetColorInHex())
+		add(0, i, 255)
 	}
 
 	for i := 0; i <= 255; i++ {
-		c := RGBColor{i, 0, 255}
-		colors = append(colors, c.GetColorInHex())
+		add(i, 0, 255)
 	}
 
 	for i := 255; i >= 0; i-- {
-		c := RGBColor{255, 0, i}
-		colors = append(colors, c.GetColorInHex())
+		add(255, 0, i)
 	}
 
 	for {
-		for _, c := range colors {
+		for i := currentColorOffset; i < len(colors); i++ {
+			c := colors[i]
 			ColorFileHandler(c)
 			time.Sleep(delay)
 		}
+		currentColorOffset = 0 // only used on first pass
 	}
 }
 
