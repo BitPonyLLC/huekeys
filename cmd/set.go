@@ -11,8 +11,10 @@ var Brightness string
 
 func init() {
 	rootCmd.AddCommand(setCmd)
-	setCmd.Flags().StringVarP(&Color, "color", "c", "", "hex or string value of a color (red, orange, yellow, green, aqua, blue, pink, purple")
-	setCmd.Flags().StringVarP(&Brightness, "brightness", "b", "", "sets the backlight brightness (0 - 255")
+	setCmd.Flags().StringVarP(&Color, "color", "c", "",
+		"hex or string value of a color (red, orange, yellow, green, aqua, blue, pink, purple) or \"random\"")
+	setCmd.Flags().StringVarP(&Brightness, "brightness", "b", "",
+		"sets the backlight brightness (0 - 255 or \"random\"")
 }
 
 var setCmd = &cobra.Command{

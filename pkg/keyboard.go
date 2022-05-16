@@ -3,7 +3,9 @@ package keyboard
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 )
 
 // RGBColor represents Red Green and Blue values of a color
@@ -12,6 +14,8 @@ type RGBColor struct {
 	Green int
 	Blue  int
 }
+
+const rgbHexFormat = "%02X%02X%02X"
 
 var presetColors = map[string]RGBColor{
 	"red":    {255, 0, 0},
@@ -38,7 +42,7 @@ var foundSysPath *SysPath
 
 // GetColorInHex returns a color in HEX format
 func (c RGBColor) GetColorInHex() string {
-	return fmt.Sprintf("%02X%02X%02X", c.Red, c.Green, c.Blue)
+	return fmt.Sprintf(rgbHexFormat, c.Red, c.Green, c.Blue)
 }
 
 func getSysPath() SysPath {
@@ -65,11 +69,11 @@ func getSysPath() SysPath {
 	return ret
 }
 
-func getPreset(color string) string {
+func getColorOf(color string) string {
 	var red int
 	var green int
 	var blue int
-	n, err := fmt.Sscanf(color, "%02X%02X%02X", &red, &green, &blue)
+	n, err := fmt.Sscanf(color, rgbHexFormat, &red, &green, &blue)
 	if err != nil || n != 3 {
 		return color
 	}
@@ -81,6 +85,16 @@ func getPreset(color string) string {
 	return color
 }
 
+func getRandomColor() string {
+	rand.Seed(time.Now().UnixMilli())
+	return fmt.Sprintf(rgbHexFormat, rand.Intn(256), rand.Intn(256), rand.Intn(256))
+}
+
+func getRandomBrightness() string {
+	rand.Seed(time.Now().UnixMilli())
+	return fmt.Sprint(rand.Intn(256))
+}
+
 // ColorFileHandler writes a string to colorFiles
 func ColorFileHandler(color string) {
 	sys := getSysPath()
@@ -89,6 +103,8 @@ func ColorFileHandler(color string) {
 	}
 	if presetColor, exists := presetColors[color]; exists {
 		color = presetColor.GetColorInHex()
+	} else if color == "random" {
+		color = getRandomColor()
 	}
 	for _, file := range sys.Files {
 		if file == "" {
@@ -114,6 +130,10 @@ func BrightnessFileHandler(c string) int {
 	if err != nil {
 		log.Fatal(err)
 		return 0
+	}
+
+	if c == "random" {
+		c = getRandomBrightness()
 	}
 
 	l, err := f.WriteString(c)
@@ -154,7 +174,7 @@ func GetCurrentColors() map[string]string {
 			log.Fatal(err)
 			continue
 		}
-		ret[file] = getPreset(string(buf))
+		ret[file] = getColorOf(string(buf))
 	}
 	return ret
 }
