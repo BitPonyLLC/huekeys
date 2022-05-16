@@ -70,3 +70,15 @@ func InfiniteRainbow(delay time.Duration) {
 		}
 	}
 }
+
+// InfinitRandom sets the keyboard colors to random values forever
+func InfiniteRandom(delay time.Duration) {
+	if delay == 0 {
+		delay = time.Second
+	}
+
+	for {
+		ColorFileHandler(RandomColor)
+		time.Sleep(delay)
+	}
+}

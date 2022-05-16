@@ -15,6 +15,7 @@ type RGBColor struct {
 	Blue  int
 }
 
+const RandomColor = "random"
 const rgbHexFormat = "%02X%02X%02X"
 
 var presetColors = map[string]RGBColor{
@@ -39,6 +40,10 @@ type SysPath struct {
 }
 
 var foundSysPath *SysPath
+
+func init() {
+	rand.Seed(time.Now().UnixMilli())
+}
 
 // GetColorInHex returns a color in HEX format
 func (c RGBColor) GetColorInHex() string {
@@ -86,13 +91,7 @@ func getColorOf(color string) string {
 }
 
 func getRandomColor() string {
-	rand.Seed(time.Now().UnixMilli())
 	return fmt.Sprintf(rgbHexFormat, rand.Intn(256), rand.Intn(256), rand.Intn(256))
-}
-
-func getRandomBrightness() string {
-	rand.Seed(time.Now().UnixMilli())
-	return fmt.Sprint(rand.Intn(256))
 }
 
 // ColorFileHandler writes a string to colorFiles
@@ -103,7 +102,7 @@ func ColorFileHandler(color string) {
 	}
 	if presetColor, exists := presetColors[color]; exists {
 		color = presetColor.GetColorInHex()
-	} else if color == "random" {
+	} else if color == RandomColor {
 		color = getRandomColor()
 	}
 	for _, file := range sys.Files {
@@ -130,10 +129,6 @@ func BrightnessFileHandler(c string) int {
 	if err != nil {
 		log.Fatal(err)
 		return 0
-	}
-
-	if c == "random" {
-		c = getRandomBrightness()
 	}
 
 	l, err := f.WriteString(c)
