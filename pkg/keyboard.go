@@ -65,6 +65,22 @@ func getSysPath() SysPath {
 	return ret
 }
 
+func getPreset(color string) string {
+	var red int
+	var green int
+	var blue int
+	n, err := fmt.Sscanf(color, "%02X%02X%02X", &red, &green, &blue)
+	if err != nil || n != 3 {
+		return color
+	}
+	for name, rgb := range presetColors {
+		if rgb.Red == red && rgb.Green == green && rgb.Blue == blue {
+			return name
+		}
+	}
+	return color
+}
+
 // ColorFileHandler writes a string to colorFiles
 func ColorFileHandler(color string) {
 	sys := getSysPath()
@@ -113,4 +129,49 @@ func BrightnessFileHandler(c string) int {
 		return 0
 	}
 	return l
+}
+
+func GetCurrentColors() map[string]string {
+	sys := getSysPath()
+	if sys.Path == "" {
+		log.Fatal("can't get a valid sysfs leds path")
+	}
+	ret := map[string]string{}
+	for _, file := range sys.Files {
+		if file == "" {
+			continue
+		}
+		p := fmt.Sprintf("%v/%v", sys.Path, file)
+		fh, err := os.Open(p)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		defer fh.Close()
+		buf := make([]byte, 6)
+		_, err = fh.Read(buf)
+		if err != nil {
+			log.Fatal(err)
+			continue
+		}
+		ret[file] = getPreset(string(buf))
+	}
+	return ret
+}
+
+func GetCurrentBrightness() string {
+	sys := getSysPath()
+	p := fmt.Sprintf("%v/brightness", sys.Path)
+	f, err := os.Open(p)
+	if err != nil {
+		log.Fatal(err)
+		return ""
+	}
+	defer f.Close()
+	buf := make([]byte, 3)
+	_, err = f.Read(buf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return string(buf)
 }
