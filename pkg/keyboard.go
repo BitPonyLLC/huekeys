@@ -1,10 +1,15 @@
 package keyboard
 
 import (
+	"bufio"
+	"compress/gzip"
+	_ "embed"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -17,6 +22,9 @@ type RGBColor struct {
 
 const RandomColor = "random"
 const rgbHexFormat = "%02X%02X%02X"
+
+//go:embed colornames.csv.gz
+var colorNamesCSVGZ string
 
 var presetColors = map[string]RGBColor{
 	"red":    {255, 0, 0},
@@ -43,6 +51,41 @@ var foundSysPath *SysPath
 
 func init() {
 	rand.Seed(time.Now().UnixMilli())
+
+	gzReader := strings.NewReader(colorNamesCSVGZ)
+	reader, err := gzip.NewReader(gzReader)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "can't read embedded colors: %v\n", err)
+		return
+	}
+	defer reader.Close()
+
+	firstLine := true
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		if firstLine {
+			firstLine = false // ignore csv header
+			continue
+		}
+		line := scanner.Text()
+		columns := strings.Split(line, ",")
+		if len(columns) < 2 {
+			fmt.Fprintln(os.Stderr, "ignoring line from embedded colors (count):", line)
+			continue
+		}
+		name := strings.ToLower(columns[0])
+		hex := columns[1]
+		if hex[0] == '#' {
+			hex = hex[1:]
+		}
+		rgb := RGBColor{}
+		n, _ := fmt.Sscanf(hex, rgbHexFormat, &rgb.Red, &rgb.Green, &rgb.Blue)
+		if n != 3 {
+			fmt.Fprintln(os.Stderr, "ignoring line from embedded colors (parse):", line)
+			continue
+		}
+		presetColors[name] = rgb
+	}
 }
 
 // GetColorInHex returns a color in HEX format
@@ -92,6 +135,18 @@ func getColorOf(color string) string {
 
 func getRandomColor() string {
 	return fmt.Sprintf(rgbHexFormat, rand.Intn(256), rand.Intn(256), rand.Intn(256))
+}
+
+func EachPresetColor(cb func(name, value string)) {
+	keys := []string{}
+	for k := range presetColors {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, n := range keys {
+		rgb := presetColors[n]
+		cb(n, rgb.GetColorInHex())
+	}
 }
 
 // ColorFileHandler writes a string to colorFiles
