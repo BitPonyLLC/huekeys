@@ -1,10 +1,13 @@
 package keyboard
 
 import (
+	"bytes"
+	_ "embed"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -188,5 +191,10 @@ func GetCurrentBrightness() string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return string(buf)
+	// make sure we don't include the null byte if it's included
+	length := bytes.IndexByte(buf, 0)
+	if length < 0 {
+		length = len(buf)
+	}
+	return strings.TrimSpace(string(buf[0:length]))
 }
