@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	"unicode"
 
@@ -53,16 +55,20 @@ func InfiniteRainbow(delay time.Duration) {
 
 	colors := make([]string, 0, 6)
 
+	f, _ := os.Create("barf.html")
+	f.WriteString("<html><body>\n")
+
 	add := func(r, g, b int) {
 		c := RGBColor{r, g, b}
 		ch := c.GetColorInHex()
+		f.WriteString(fmt.Sprintf(`<h5 style="background-color:#%s">%s</h5>`+"\n", ch, ch))
 		if ch == currentColor {
 			currentColorOffset = len(colors)
 		}
 		colors = append(colors, ch)
 	}
 
-	// generate range of rainbow values
+	// generate range of rainbow values ("cold" to "hot")
 	for i := 0; i <= 255; i++ {
 		add(255, i, 0)
 	}
@@ -87,6 +93,10 @@ func InfiniteRainbow(delay time.Duration) {
 		add(255, 0, i)
 	}
 
+	f.WriteString("</body></html>\n")
+	f.Close()
+
+	os.Exit(42)
 	for {
 		for i := currentColorOffset; i < len(colors); i++ {
 			c := colors[i]
@@ -107,6 +117,61 @@ func InfiniteRandom(delay time.Duration) {
 		ColorFileHandler(RandomColor)
 		time.Sleep(delay)
 	}
+}
+
+func MonitorCPU(delay time.Duration) {
+	if delay == 0 {
+		delay = time.Second
+	}
+
+	for {
+		previous := getCPUStats()
+		time.Sleep(delay)
+		current := getCPUStats()
+		cpuPercentage := float64(current.active-previous.active) / float64(current.total-previous.total)
+		i := int(math.Round(float64(len(coldHotColors)-1) * cpuPercentage))
+		color := coldHotColors[i]
+		ColorFileHandler(color)
+	}
+}
+
+type cpuStats struct {
+	active int
+	total  int
+}
+
+func getCPUStats() *cpuStats {
+	f, err := os.Open("/proc/stat")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "can't open system stats: %v\n", err)
+		return nil
+	}
+	defer f.Close()
+
+	reader := bufio.NewReader(f)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "can't read system stats: %v\n", err)
+		return nil
+	}
+
+	parts := strings.Split(line, " ")
+
+	// name, _ := strconv.Atoi(parts[0])
+	user, _ := strconv.Atoi(parts[1])
+	nice, _ := strconv.Atoi(parts[2])
+	system, _ := strconv.Atoi(parts[3])
+	idle, _ := strconv.Atoi(parts[4])
+	iowait, _ := strconv.Atoi(parts[5])
+	// irq, _ := strconv.Atoi(parts[6])
+	softirq, _ := strconv.Atoi(parts[7])
+	steal, _ := strconv.Atoi(parts[8])
+	// guest, _ := strconv.Atoi(parts[9])
+
+	stats := &cpuStats{active: user + system + nice + softirq + steal}
+	stats.total = stats.active + idle + iowait
+
+	return stats
 }
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
