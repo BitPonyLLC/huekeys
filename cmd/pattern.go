@@ -21,7 +21,8 @@ var NiceLevel int
 
 func init() {
 	rootCmd.AddCommand(runCmd)
-	runCmd.Flags().StringVarP(&Pattern, "pattern", "p", "", "the pattern to run: rainbow, pulse, random")
+	runCmd.Flags().StringVarP(&Pattern, "pattern", "p", "",
+		"the pattern to run: rainbow, pulse, random, desktop")
 	runCmd.Flags().DurationVarP(&Delay, "delay", "d", 0,
 		"the amount of time to wait between updates (units: ns, us, ms, s, m, h)")
 	runCmd.Flags().IntVar(&NiceLevel, "nice", 10, "the priority level of the process")
@@ -38,7 +39,7 @@ func beNice() {
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "runs a backlight pattern",
-	Long:  `runs a pattern that the backlight loops through. 'rainbow' or 'pulse'`,
+	Long:  `runs a backlight pattern`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if Pattern != "" {
 			beNice()
@@ -50,6 +51,8 @@ var runCmd = &cobra.Command{
 				keyboard.BrightnessPulse(Delay)
 			case "random":
 				keyboard.InfiniteRandom(Delay)
+			case "desktop":
+				keyboard.MatchDesktopBackground()
 			default:
 				fmt.Fprintln(os.Stderr, "unknown pattern")
 				os.Exit(1)

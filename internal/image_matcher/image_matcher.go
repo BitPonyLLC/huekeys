@@ -16,10 +16,12 @@ func load(pathname string) (image.Image, error) {
 		return nil, fmt.Errorf("unable to open %s: %w", pathname, err)
 	}
 	defer f.Close()
+
 	img, _, err := image.Decode(f)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to decode %s: %w", pathname, err)
 	}
+
 	return img, nil
 }
 
