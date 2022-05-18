@@ -172,13 +172,16 @@ func newDesktopSettingCmd(action, group, key string) *exec.Cmd {
 		if sudoUser != "" {
 			cmdName = "sudo"
 			args = []string{"-Eu", sudoUser, "gsettings"}
+			if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
+				// we need access to the user's gnome session in order to look up correct setting values
+				panic("running as root without user environment: add `-E` when invoking sudo")
+			}
 		}
 	}
 
 	group = "org.gnome.desktop." + group
 	args = append(args, action, group, key)
 	cmd := exec.Command(cmdName, args...)
-	fmt.Printf("%s\n", cmd)
 	return cmd
 }
 
