@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -28,6 +30,44 @@ func init() {
 	runCmd.Flags().IntVar(&NiceLevel, "nice", 10, "the priority level of the process")
 }
 
+const pidpath = "/tmp/sys76-kb.pid"
+
+func checkAndSetPidPath() {
+	otherPidContent, err := os.ReadFile(pidpath)
+	if err == nil {
+		var otherPid int
+		otherPid, err = strconv.Atoi(string(otherPidContent))
+		if err != nil {
+			panic(err)
+		}
+		err = syscall.Kill(otherPid, 0)
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "process %d is already running a pattern\n", otherPid)
+			os.Exit(11)
+		}
+		if err.(syscall.Errno) != syscall.ESRCH {
+			panic(err)
+		}
+	} else {
+		if !os.IsNotExist(err) {
+			fmt.Printf("BARF %T of %+v\n", err, err)
+			panic(err)
+		}
+	}
+	err = os.WriteFile(pidpath, []byte(fmt.Sprint(os.Getpid())), 0666)
+	if err != nil {
+		panic(err)
+	}
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-stop
+		keyboard.StopDesktopBackgroundMonitor()
+		os.Remove(pidpath)
+		os.Exit(0)
+	}()
+}
+
 func beNice() {
 	pid := syscall.Getpid()
 	err := syscall.Setpriority(syscall.PRIO_PROCESS, pid, NiceLevel)
@@ -42,6 +82,7 @@ var runCmd = &cobra.Command{
 	Long:  `runs a backlight pattern`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if Pattern != "" {
+			checkAndSetPidPath()
 			beNice()
 			fmt.Printf("running pattern %v\n", Pattern)
 			switch Pattern {

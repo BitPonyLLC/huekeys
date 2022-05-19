@@ -110,6 +110,8 @@ func InfiniteRandom(delay time.Duration) {
 }
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
+var backgroundProcess *os.Process
+var stopRequested = false
 
 func MatchDesktopBackground() {
 	// TODO: consider using D-Bus directly instead of gsettings...
@@ -150,6 +152,16 @@ func MatchDesktopBackground() {
 		return
 	}
 
+	backgroundProcess = cmd.Process
+
+	go func() {
+		state, err := backgroundProcess.Wait()
+		if !stopRequested {
+			fmt.Fprintf(os.Stderr, "gnome background monitor has stopped (%v): %v\n", state, err)
+			os.Exit(5)
+		}
+	}()
+
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -159,6 +171,18 @@ func MatchDesktopBackground() {
 			continue
 		}
 		setColorFrom(m[1])
+	}
+}
+
+func StopDesktopBackgroundMonitor() {
+	if backgroundProcess != nil {
+		p := backgroundProcess
+		backgroundProcess = nil
+		stopRequested = true
+		err := p.Kill()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "cant' kill gnome background monitor: %v\n", err)
+		}
 	}
 }
 
