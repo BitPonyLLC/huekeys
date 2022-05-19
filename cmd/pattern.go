@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
@@ -57,6 +58,14 @@ func checkAndSetPidPath() {
 	if err != nil {
 		panic(err)
 	}
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-stop
+		keyboard.StopDesktopBackgroundMonitor()
+		os.Remove(pidpath)
+		os.Exit(0)
+	}()
 }
 
 func beNice() {
