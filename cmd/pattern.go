@@ -98,6 +98,8 @@ var runCmd = &cobra.Command{
 			keyboard.InfiniteRandom(Delay)
 		case "cpu":
 			keyboard.MonitorCPU(Delay)
+		case "typing":
+			keyboard.MonitorTyping("", 0)
 		case "desktop":
 			keyboard.MatchDesktopBackground()
 		default:

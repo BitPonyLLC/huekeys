@@ -3,6 +3,7 @@ package keyboard
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"net/url"
@@ -119,6 +120,7 @@ func InfiniteRandom(delay time.Duration) {
 	}
 }
 
+// MonitorCPU sets the keyboard colors according to CPU utilization
 func MonitorCPU(delay time.Duration) {
 	if delay == 0 {
 		delay = time.Second
@@ -172,6 +174,106 @@ func getCPUStats() *cpuStats {
 	stats.total = stats.active + idle + iowait
 
 	return stats
+}
+
+// MonitorTyping sets the keyboard colors acccording to rate of typing
+func MonitorTyping(inputEventID string, hotRate float64) {
+	if inputEventID == "" {
+		inputEventID = getInputEventID()
+		if inputEventID == "" {
+			return
+		}
+	}
+
+	if hotRate == 0 {
+		hotRate = 10.0
+	}
+
+	eventpath := "/dev/input/" + inputEventID
+	f, err := os.Open(eventpath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "can't open input events device (%s): %v\n", eventpath, err)
+		return
+	}
+
+	count := 0
+
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			pressesPerSecond := float64(count) / 5.0
+			count = 0
+			var pressPercentage float64
+			if pressesPerSecond > hotRate {
+				pressPercentage = 1.0
+			} else {
+				pressPercentage = pressesPerSecond / hotRate
+			}
+			// fmt.Printf("rate: %f (%f)\n", pressesPerSecond, pressPercentage)
+			i := int(math.Round(float64(len(coldHotColors)-1) * pressPercentage))
+			color := coldHotColors[i]
+			ColorFileHandler(color)
+		}
+	}()
+
+	// https://janczer.github.io/work-with-dev-input/
+	buf := make([]byte, 24)
+	for {
+		_, err := f.Read(buf)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "can't read input events device (%s): %v\n", eventpath, err)
+			return
+		}
+
+		typ := binary.LittleEndian.Uint16(buf[16:18])
+		// code := binary.LittleEndian.Uint16(buf[18:20])
+
+		var value int32
+		binary.Read(bytes.NewReader(buf[20:]), binary.LittleEndian, &value)
+
+		// we only care when typ is EV_KEY and value indicates "pressed"
+		// https://github.com/torvalds/linux/blob/v5.17/include/uapi/linux/input-event-codes.h#L34-L51
+		if typ == 1 && value == 1 {
+			// sec := binary.LittleEndian.Uint64(buf[0:8])
+			// usec := binary.LittleEndian.Uint64(buf[8:16])
+			// ts := time.Unix(int64(sec), int64(usec)*1000)
+			count += 1
+		}
+	}
+}
+
+var keyboardEventRE = regexp.MustCompile(`[= ](event\d+)( |$)`)
+
+func getInputEventID() string {
+	f, err := os.Open("/proc/bus/input/devices")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "can't open input devices list: %v\n", err)
+		return ""
+	}
+	defer f.Close()
+
+	found := false
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		switch line[0] {
+		case 'N':
+			found = strings.Contains(strings.ToLower(line), "keyboard")
+		case 'H':
+			if found {
+				match := keyboardEventRE.FindStringSubmatch(line)
+				if match != nil {
+					return match[1]
+				}
+			}
+		}
+	}
+
+	return ""
 }
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
