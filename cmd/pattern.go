@@ -99,7 +99,7 @@ var runCmd = &cobra.Command{
 		case "cpu":
 			keyboard.MonitorCPU(Delay)
 		case "typing":
-			keyboard.MonitorTyping("", 0)
+			keyboard.MonitorTyping(Delay, "", 0)
 		case "desktop":
 			keyboard.MatchDesktopBackground()
 		default:

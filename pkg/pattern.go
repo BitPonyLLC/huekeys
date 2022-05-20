@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -178,7 +178,11 @@ func getCPUStats() *cpuStats {
 }
 
 // MonitorTyping sets the keyboard colors acccording to rate of typing
-func MonitorTyping(inputEventID string, hotRate float64) {
+func MonitorTyping(delay time.Duration, inputEventID string, hotRate float64) {
+	if delay == 0 {
+		delay = 300 * time.Millisecond
+	}
+
 	if inputEventID == "" {
 		inputEventID = getInputEventID()
 		if inputEventID == "" {
@@ -197,33 +201,26 @@ func MonitorTyping(inputEventID string, hotRate float64) {
 		return
 	}
 
-	count := 0
-	var countMutex sync.Mutex
-
+	count := int32(0)
 	ColorFileHandler(coldHotColors[0])
 
 	go func() {
-		delay := 3
+		lastIndex := 0
+		colorsLen := len(coldHotColors)
 		for {
-			time.Sleep(time.Duration(delay) * time.Second)
-			countMutex.Lock()
-			pressesPerSecond := float64(count) / float64(delay)
-			if count > 1 {
-				count = int(math.Round(float64(count) * 0.75))
-			} else {
-				count = 0
+			time.Sleep(delay)
+			i := int(atomic.LoadInt32(&count))
+			if i == lastIndex {
+				continue // no color change needed
 			}
-			countMutex.Unlock()
-			var pressPercentage float64
-			if pressesPerSecond > hotRate {
-				pressPercentage = 1.0
-			} else {
-				pressPercentage = pressesPerSecond / hotRate
+			if i >= colorsLen {
+				i = colorsLen - 1
 			}
-			// fmt.Printf("rate: %f (%f)\n", pressesPerSecond, pressPercentage)
-			i := int(math.Round(float64(len(coldHotColors)-1) * pressPercentage))
 			color := coldHotColors[i]
 			ColorFileHandler(color)
+			if i > 0 {
+				atomic.AddInt32(&count, -1)
+			}
 		}
 	}()
 
@@ -248,9 +245,7 @@ func MonitorTyping(inputEventID string, hotRate float64) {
 			// sec := binary.LittleEndian.Uint64(buf[0:8])
 			// usec := binary.LittleEndian.Uint64(buf[8:16])
 			// ts := time.Unix(int64(sec), int64(usec)*1000)
-			countMutex.Lock()
-			count += 1
-			countMutex.Unlock()
+			atomic.AddInt32(&count, 1)
 		}
 	}
 }
