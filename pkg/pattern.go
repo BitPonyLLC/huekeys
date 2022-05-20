@@ -183,61 +183,7 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 	keyPressCount := int32(0)
 	ColorFileHandler(coldHotColors[0])
 
-	go func() {
-		var idleAt *time.Time
-		var cancelFunc context.CancelFunc
-
-		lastIndex := 0
-		colorsLen := len(coldHotColors)
-
-		for {
-			if sleep(ctx, delay) {
-				if cancelFunc != nil {
-					cancelFunc()
-				}
-				return
-			}
-
-			i := int(atomic.LoadInt32(&keyPressCount))
-			if i >= colorsLen {
-				i = colorsLen - 1
-			}
-
-			// don't bother setting the same value
-			if i != lastIndex {
-				color := coldHotColors[i]
-				ColorFileHandler(color)
-				lastIndex = i
-			}
-
-			if i > 0 {
-				idleAt = nil
-				if cancelFunc != nil {
-					cancelFunc()
-					cancelFunc = nil
-				}
-				atomic.AddInt32(&keyPressCount, -1)
-				continue
-			}
-
-			if idleAt == nil {
-				now := time.Now()
-				idleAt = &now
-				continue
-			}
-
-			if cancelFunc != nil {
-				continue
-			}
-
-			diff := time.Since(*idleAt)
-			if diff > 30*time.Second {
-				var cancelCtx context.Context
-				cancelCtx, cancelFunc = context.WithCancel(ctx)
-				go func() { idleCB(cancelCtx) }()
-			}
-		}
-	}()
+	go setTypingColor(ctx, delay, &keyPressCount, idleCB)
 
 	// https://janczer.github.io/work-with-dev-input/
 	buf := make([]byte, 24)
@@ -261,6 +207,62 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 			// usec := binary.LittleEndian.Uint64(buf[8:16])
 			// ts := time.Unix(int64(sec), int64(usec)*1000)
 			atomic.AddInt32(&keyPressCount, 1)
+		}
+	}
+}
+
+func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int32, idleCB func(context.Context)) {
+	var idleAt *time.Time
+	var cancelFunc context.CancelFunc
+
+	lastIndex := 0
+	colorsLen := len(coldHotColors)
+
+	for {
+		if sleep(ctx, delay) {
+			if cancelFunc != nil {
+				cancelFunc()
+			}
+			return
+		}
+
+		i := int(atomic.LoadInt32(keyPressCount))
+		if i >= colorsLen {
+			i = colorsLen - 1
+		}
+
+		// don't bother setting the same value
+		if i != lastIndex {
+			color := coldHotColors[i]
+			ColorFileHandler(color)
+			lastIndex = i
+		}
+
+		if i > 0 {
+			idleAt = nil
+			if cancelFunc != nil {
+				cancelFunc()
+				cancelFunc = nil
+			}
+			atomic.AddInt32(keyPressCount, -1)
+			continue
+		}
+
+		if idleAt == nil {
+			now := time.Now()
+			idleAt = &now
+			continue
+		}
+
+		if cancelFunc != nil {
+			continue
+		}
+
+		diff := time.Since(*idleAt)
+		if diff > 30*time.Second {
+			var cancelCtx context.Context
+			cancelCtx, cancelFunc = context.WithCancel(ctx)
+			go func() { idleCB(cancelCtx) }()
 		}
 	}
 }
