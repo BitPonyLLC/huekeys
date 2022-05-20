@@ -3,6 +3,7 @@ package keyboard
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -20,23 +21,27 @@ import (
 )
 
 // BrightnessPulse continuously dials up and down brightness
-func BrightnessPulse(delay time.Duration) {
+func BrightnessPulse(ctx context.Context, delay time.Duration) {
 	for {
 		for i := 255; i >= 0; i-- {
 			s := strconv.Itoa(i)
 			BrightnessFileHandler(s)
-			time.Sleep(delay)
+			if sleep(ctx, delay) {
+				return
+			}
 		}
 		for i := 1; i <= 255; i++ {
 			s := strconv.Itoa(i)
 			BrightnessFileHandler(s)
-			time.Sleep(delay)
+			if sleep(ctx, delay) {
+				return
+			}
 		}
 	}
 }
 
 // InfiniteRainbow generates... an infinite rainbow
-func InfiniteRainbow(delay time.Duration) {
+func InfiniteRainbow(ctx context.Context, delay time.Duration) {
 	var currentColor string
 	var currentColorOffset int
 
@@ -95,25 +100,32 @@ func InfiniteRainbow(delay time.Duration) {
 		for i := currentColorOffset; i < len(colors); i++ {
 			c := colors[i]
 			ColorFileHandler(c)
-			time.Sleep(delay)
+			if sleep(ctx, delay) {
+				return
+			}
 		}
 		currentColorOffset = 0 // only used on first pass
 	}
 }
 
 // InfinitRandom sets the keyboard colors to random values forever
-func InfiniteRandom(delay time.Duration) {
+func InfiniteRandom(ctx context.Context, delay time.Duration) {
+	fmt.Printf("barf: %s\n", delay)
 	for {
 		ColorFileHandler(RandomColor)
-		time.Sleep(delay)
+		if sleep(ctx, delay) {
+			return
+		}
 	}
 }
 
 // MonitorCPU sets the keyboard colors according to CPU utilization
-func MonitorCPU(delay time.Duration) {
+func MonitorCPU(ctx context.Context, delay time.Duration) {
 	for {
 		previous := getCPUStats()
-		time.Sleep(delay)
+		if sleep(ctx, delay) {
+			return
+		}
 		current := getCPUStats()
 		cpuPercentage := float64(current.active-previous.active) / float64(current.total-previous.total)
 		i := int(math.Round(float64(len(coldHotColors)-1) * cpuPercentage))
@@ -162,7 +174,7 @@ func getCPUStats() *cpuStats {
 }
 
 // MonitorTyping sets the keyboard colors acccording to rate of typing
-func MonitorTyping(delay time.Duration, inputEventID string) {
+func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string) {
 	if inputEventID == "" {
 		inputEventID = getInputEventID()
 		if inputEventID == "" {
@@ -184,7 +196,9 @@ func MonitorTyping(delay time.Duration, inputEventID string) {
 		lastIndex := 0
 		colorsLen := len(coldHotColors)
 		for {
-			time.Sleep(delay)
+			if sleep(ctx, delay) {
+				return
+			}
 			i := int(atomic.LoadInt32(&count))
 			if i == lastIndex {
 				continue // no color change needed
@@ -264,7 +278,7 @@ var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^'
 var backgroundProcess *os.Process
 var stopRequested = false
 
-func MatchDesktopBackground() {
+func MatchDesktopBackground(ctx context.Context) {
 	// TODO: consider using D-Bus directly instead of gsettings...
 
 	colorScheme, err := getDesktopSetting("interface", "color-scheme")
@@ -385,4 +399,15 @@ func setColorFrom(u string) {
 	}
 
 	ColorFileHandler(color)
+}
+
+func sleep(ctx context.Context, delay time.Duration) bool {
+	wake := time.NewTimer(delay)
+	select {
+	case <-ctx.Done():
+		wake.Stop()
+		return true
+	case <-wake.C:
+		return false
+	}
 }

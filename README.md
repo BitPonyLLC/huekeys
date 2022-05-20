@@ -3,12 +3,14 @@ This is cli is still a work-in-progress. The goal is to create a robust tool for
 
 Only tested on the Darter, but it should work on other System76 models.
 
-Requires sudo privs to modify the backlight files in `/sys/class/leds/system76` or you may consider adjusting permissions. For example, if your user is in the `adm` group (use `id` to determine your group membership), the following will allow setting of color and brightness:
+Requires sudo privs to modify the backlight files in `/sys/class/leds/system76`. You may consider adjusting permissions. For example, if your user is in the `adm` group (use `id` to determine your group membership), the following will allow setting of color and brightness:
 ```
 $ ( cd /sys/class/leds/system76*\:\:kbd_backlight && \
     sudo chgrp adm color* brightness && \
     sudo chmod 664 brightness color* )
 ```
+
+NOTE: this only works until reboot since these devices will be recreated w/ the original permissions.
 
 ### usage
 ```

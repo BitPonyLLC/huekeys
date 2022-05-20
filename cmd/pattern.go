@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -40,60 +41,68 @@ func init() {
 	runCmd.Flags().StringVar(&pidpath, "pidpath", pidpath, "pathname of the pidfile")
 	runCmd.Flags().IntVar(&priority, "nice", 10, "the priority level of the process")
 
-	var delay time.Duration
 	var patternCmd *cobra.Command
 
-	addDelayFlag := func(value time.Duration) {
-		patternCmd.Flags().DurationVarP(&delay, "delay", "d", value,
+	addDelayFlag := func(delay *time.Duration) {
+		patternCmd.Flags().DurationVarP(delay, "delay", "d", *delay,
 			"the amount of time to wait between updates (units: ns, us, ms, s, m, h)")
 	}
 
+	pulseDelay := 25 * time.Millisecond
 	patternCmd = &cobra.Command{
 		Use:   "pulse",
 		Short: "pulse the keyboard brightness up and down",
-		Run:   func(_ *cobra.Command, _ []string) { keyboard.BrightnessPulse(delay) },
+		Run:   func(_ *cobra.Command, _ []string) { keyboard.BrightnessPulse(context.Background(), pulseDelay) },
 	}
-	addDelayFlag(25 * time.Millisecond)
+	addDelayFlag(&pulseDelay)
 	runCmd.AddCommand(patternCmd)
 
+	rainbowDelay := time.Nanosecond
 	patternCmd = &cobra.Command{
 		Use:   "rainbow",
 		Short: "loop through all the colors of the rainbow",
-		Run:   func(_ *cobra.Command, _ []string) { keyboard.InfiniteRainbow(delay) },
+		Run:   func(_ *cobra.Command, _ []string) { keyboard.InfiniteRainbow(context.Background(), rainbowDelay) },
 	}
-	addDelayFlag(time.Nanosecond)
+	addDelayFlag(&rainbowDelay)
 	runCmd.AddCommand(patternCmd)
 
+	randomDelay := 1 * time.Second
 	patternCmd = &cobra.Command{
 		Use:   "random",
 		Short: "constantly change the color to a random selection",
-		Run:   func(_ *cobra.Command, _ []string) { keyboard.InfiniteRandom(delay) },
+		Run: func(_ *cobra.Command, _ []string) {
+			keyboard.InfiniteRandom(context.Background(), randomDelay)
+		},
 	}
-	addDelayFlag(1 * time.Second)
+	addDelayFlag(&randomDelay)
 	runCmd.AddCommand(patternCmd)
 
+	cpuDelay := 1 * time.Second
 	patternCmd = &cobra.Command{
 		Use:   "cpu",
 		Short: "change the color according to CPU utilization (cold to hot)",
-		Run:   func(_ *cobra.Command, _ []string) { keyboard.MonitorCPU(delay) },
+		Run:   func(_ *cobra.Command, _ []string) { keyboard.MonitorCPU(context.Background(), cpuDelay) },
 	}
-	addDelayFlag(1 * time.Second)
+	addDelayFlag(&cpuDelay)
 	runCmd.AddCommand(patternCmd)
 
+	typingDelay := 300 * time.Millisecond
 	inputEventID := ""
 	patternCmd = &cobra.Command{
 		Use:   "typing",
 		Short: "change the color according to typing speed (cold to hot)",
-		Run:   func(_ *cobra.Command, _ []string) { keyboard.MonitorTyping(delay, inputEventID) },
+		Run: func(_ *cobra.Command, _ []string) {
+			keyboard.MonitorTyping(context.Background(), typingDelay, inputEventID)
+		},
 	}
-	addDelayFlag(300 * time.Millisecond)
+	addDelayFlag(&typingDelay)
 	patternCmd.Flags().StringVarP(&inputEventID, "input-event-id", "i", inputEventID, "input event ID to monitor")
 	runCmd.AddCommand(patternCmd)
 
 	patternCmd = &cobra.Command{
 		Use:   "desktop",
 		Short: "monitor the desktop picture and change the keyboard color to match",
-		Run:   func(_ *cobra.Command, _ []string) { keyboard.MatchDesktopBackground() },
+		Run:   func(_ *cobra.Command, _ []string) { keyboard.MatchDesktopBackground(context.Background()) },
 	}
 	runCmd.AddCommand(patternCmd)
 }
