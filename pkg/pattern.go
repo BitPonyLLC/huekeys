@@ -306,8 +306,6 @@ var backgroundProcess *os.Process
 var stopRequested = false
 
 func MatchDesktopBackground(ctx context.Context) {
-	// TODO: consider using D-Bus directly instead of gsettings...
-
 	colorScheme, err := getDesktopSetting("interface", "color-scheme")
 	if err != nil {
 		return
@@ -350,20 +348,24 @@ func MatchDesktopBackground(ctx context.Context) {
 		state, err := backgroundProcess.Wait()
 		if !stopRequested {
 			fmt.Fprintf(os.Stderr, "gnome background monitor has stopped (%v): %v\n", state, err)
-			os.Exit(5)
 		}
 	}()
 
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		line := scanner.Text()
-		m := pictureURIMonitorRE.FindStringSubmatch(line)
-		if m == nil || len(m) < 2 || m[1] == "" {
-			fmt.Fprintf(os.Stderr, "ignoring line found in monitor output: %s\n", line)
-			continue
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			m := pictureURIMonitorRE.FindStringSubmatch(line)
+			if m == nil || len(m) < 2 || m[1] == "" {
+				fmt.Fprintf(os.Stderr, "ignoring line found in monitor output: %s\n", line)
+				continue
+			}
+			setColorFrom(m[1])
 		}
-		setColorFrom(m[1])
-	}
+	}()
+
+	<-ctx.Done()
+	StopDesktopBackgroundMonitor()
 }
 
 func StopDesktopBackgroundMonitor() {
@@ -402,6 +404,7 @@ func newDesktopSettingCmd(action, group, key string) *exec.Cmd {
 }
 
 func getDesktopSetting(group, key string) (string, error) {
+	// TODO: consider using D-Bus directly instead of gsettings...
 	val, err := newDesktopSettingCmd("get", group, key).Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "can't get %s %s: %v\n", group, key, err)
