@@ -178,7 +178,7 @@ func getCPUStats() *cpuStats {
 }
 
 // MonitorTyping sets the keyboard colors acccording to rate of typing
-func MonitorTyping(delay time.Duration, inputEventID string, hotRate float64) {
+func MonitorTyping(delay time.Duration, inputEventID string) {
 	if delay == 0 {
 		delay = 300 * time.Millisecond
 	}
@@ -188,10 +188,6 @@ func MonitorTyping(delay time.Duration, inputEventID string, hotRate float64) {
 		if inputEventID == "" {
 			return
 		}
-	}
-
-	if hotRate == 0 {
-		hotRate = 10.0
 	}
 
 	eventpath := "/dev/input/" + inputEventID
