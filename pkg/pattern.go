@@ -21,10 +21,6 @@ import (
 
 // BrightnessPulse continuously dials up and down brightness
 func BrightnessPulse(delay time.Duration) {
-	if delay == 0 {
-		delay = 25 * time.Millisecond
-	}
-
 	for {
 		for i := 255; i >= 0; i-- {
 			s := strconv.Itoa(i)
@@ -41,10 +37,6 @@ func BrightnessPulse(delay time.Duration) {
 
 // InfiniteRainbow generates... an infinite rainbow
 func InfiniteRainbow(delay time.Duration) {
-	if delay == 0 {
-		delay = time.Nanosecond
-	}
-
 	var currentColor string
 	var currentColorOffset int
 
@@ -111,10 +103,6 @@ func InfiniteRainbow(delay time.Duration) {
 
 // InfinitRandom sets the keyboard colors to random values forever
 func InfiniteRandom(delay time.Duration) {
-	if delay == 0 {
-		delay = time.Second
-	}
-
 	for {
 		ColorFileHandler(RandomColor)
 		time.Sleep(delay)
@@ -123,10 +111,6 @@ func InfiniteRandom(delay time.Duration) {
 
 // MonitorCPU sets the keyboard colors according to CPU utilization
 func MonitorCPU(delay time.Duration) {
-	if delay == 0 {
-		delay = time.Second
-	}
-
 	for {
 		previous := getCPUStats()
 		time.Sleep(delay)
@@ -179,10 +163,6 @@ func getCPUStats() *cpuStats {
 
 // MonitorTyping sets the keyboard colors acccording to rate of typing
 func MonitorTyping(delay time.Duration, inputEventID string) {
-	if delay == 0 {
-		delay = 300 * time.Millisecond
-	}
-
 	if inputEventID == "" {
 		inputEventID = getInputEventID()
 		if inputEventID == "" {
