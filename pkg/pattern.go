@@ -54,13 +54,9 @@ func InfiniteRainbow(ctx context.Context, delay time.Duration) {
 
 	colors := make([]string, 0, 6)
 
-	f, _ := os.Create("barf.html")
-	f.WriteString("<html><body>\n")
-
 	add := func(r, g, b int) {
 		c := RGBColor{r, g, b}
 		ch := c.GetColorInHex()
-		f.WriteString(fmt.Sprintf(`<h5 style="background-color:#%s">%s</h5>`+"\n", ch, ch))
 		if ch == currentColor {
 			currentColorOffset = len(colors)
 		}
@@ -92,10 +88,6 @@ func InfiniteRainbow(ctx context.Context, delay time.Duration) {
 		add(255, 0, i)
 	}
 
-	f.WriteString("</body></html>\n")
-	f.Close()
-
-	os.Exit(42)
 	for {
 		for i := currentColorOffset; i < len(colors); i++ {
 			c := colors[i]
@@ -110,7 +102,6 @@ func InfiniteRainbow(ctx context.Context, delay time.Duration) {
 
 // InfinitRandom sets the keyboard colors to random values forever
 func InfiniteRandom(ctx context.Context, delay time.Duration) {
-	fmt.Printf("barf: %s\n", delay)
 	for {
 		ColorFileHandler(RandomColor)
 		if sleep(ctx, delay) {
