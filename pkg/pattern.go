@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -197,12 +198,22 @@ func MonitorTyping(inputEventID string, hotRate float64) {
 	}
 
 	count := 0
+	var countMutex sync.Mutex
+
+	ColorFileHandler(coldHotColors[0])
 
 	go func() {
+		delay := 3
 		for {
-			time.Sleep(5 * time.Second)
-			pressesPerSecond := float64(count) / 5.0
-			count = 0
+			time.Sleep(time.Duration(delay) * time.Second)
+			countMutex.Lock()
+			pressesPerSecond := float64(count) / float64(delay)
+			if count > 1 {
+				count = int(math.Round(float64(count) * 0.75))
+			} else {
+				count = 0
+			}
+			countMutex.Unlock()
 			var pressPercentage float64
 			if pressesPerSecond > hotRate {
 				pressPercentage = 1.0
@@ -237,7 +248,9 @@ func MonitorTyping(inputEventID string, hotRate float64) {
 			// sec := binary.LittleEndian.Uint64(buf[0:8])
 			// usec := binary.LittleEndian.Uint64(buf[8:16])
 			// ts := time.Unix(int64(sec), int64(usec)*1000)
+			countMutex.Lock()
 			count += 1
+			countMutex.Unlock()
 		}
 	}
 }
