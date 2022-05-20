@@ -86,24 +86,43 @@ func init() {
 	addDelayFlag(&cpuDelay)
 	runCmd.AddCommand(patternCmd)
 
-	typingDelay := 300 * time.Millisecond
-	inputEventID := ""
-	patternCmd = &cobra.Command{
-		Use:   "typing",
-		Short: "change the color according to typing speed (cold to hot)",
-		Run: func(_ *cobra.Command, _ []string) {
-			keyboard.MonitorTyping(context.Background(), typingDelay, inputEventID)
-		},
-	}
-	addDelayFlag(&typingDelay)
-	patternCmd.Flags().StringVarP(&inputEventID, "input-event-id", "i", inputEventID, "input event ID to monitor")
-	runCmd.AddCommand(patternCmd)
-
 	patternCmd = &cobra.Command{
 		Use:   "desktop",
 		Short: "monitor the desktop picture and change the keyboard color to match",
 		Run:   func(_ *cobra.Command, _ []string) { keyboard.MatchDesktopBackground(context.Background()) },
 	}
+	runCmd.AddCommand(patternCmd)
+
+	typingDelay := 300 * time.Millisecond
+	inputEventID := ""
+	idlePattern := ""
+	patternCmd = &cobra.Command{
+		Use:   "typing",
+		Short: "change the color according to typing speed (cold to hot)",
+		Run: func(cmd *cobra.Command, _ []string) {
+			var idleCB func(context.Context)
+			switch idlePattern {
+			case "pulse":
+				idleCB = func(ctx context.Context) { keyboard.BrightnessPulse(ctx, pulseDelay) }
+			case "rainbow":
+				idleCB = func(ctx context.Context) { keyboard.InfiniteRainbow(ctx, rainbowDelay) }
+			case "random":
+				idleCB = func(ctx context.Context) { keyboard.InfiniteRandom(ctx, randomDelay) }
+			case "cpu":
+				idleCB = func(ctx context.Context) { keyboard.MonitorCPU(ctx, cpuDelay) }
+			case "desktop":
+				idleCB = func(ctx context.Context) { keyboard.MatchDesktopBackground(ctx) }
+			default:
+				cmd.PrintErrln("unknown pattern:", idlePattern)
+				os.Exit(3)
+			}
+			keyboard.MonitorTyping(context.Background(), typingDelay, inputEventID, idleCB)
+		},
+	}
+	addDelayFlag(&typingDelay)
+	patternCmd.Flags().StringVar(&inputEventID, "input-event-id", inputEventID, "input event ID to monitor")
+	patternCmd.Flags().StringVarP(&idlePattern, "idle", "i", idlePattern,
+		"name of pattern to run while keyboard is idle for more than 30 seconds")
 	runCmd.AddCommand(patternCmd)
 }
 

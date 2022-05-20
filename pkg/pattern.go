@@ -165,7 +165,7 @@ func getCPUStats() *cpuStats {
 }
 
 // MonitorTyping sets the keyboard colors acccording to rate of typing
-func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string) {
+func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string, idleCB func(context.Context)) {
 	if inputEventID == "" {
 		inputEventID = getInputEventID()
 		if inputEventID == "" {
@@ -180,27 +180,61 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 		return
 	}
 
-	count := int32(0)
+	keyPressCount := int32(0)
 	ColorFileHandler(coldHotColors[0])
 
 	go func() {
+		var idleAt *time.Time
+		var cancelFunc context.CancelFunc
+
 		lastIndex := 0
 		colorsLen := len(coldHotColors)
+
 		for {
 			if sleep(ctx, delay) {
+				if cancelFunc != nil {
+					cancelFunc()
+				}
 				return
 			}
-			i := int(atomic.LoadInt32(&count))
-			if i == lastIndex {
-				continue // no color change needed
-			}
+
+			i := int(atomic.LoadInt32(&keyPressCount))
 			if i >= colorsLen {
 				i = colorsLen - 1
 			}
-			color := coldHotColors[i]
-			ColorFileHandler(color)
+
+			// don't bother setting the same value
+			if i != lastIndex {
+				color := coldHotColors[i]
+				ColorFileHandler(color)
+				lastIndex = i
+			}
+
 			if i > 0 {
-				atomic.AddInt32(&count, -1)
+				idleAt = nil
+				if cancelFunc != nil {
+					cancelFunc()
+					cancelFunc = nil
+				}
+				atomic.AddInt32(&keyPressCount, -1)
+				continue
+			}
+
+			if idleAt == nil {
+				now := time.Now()
+				idleAt = &now
+				continue
+			}
+
+			if cancelFunc != nil {
+				continue
+			}
+
+			diff := time.Since(*idleAt)
+			if diff > 30*time.Second {
+				var cancelCtx context.Context
+				cancelCtx, cancelFunc = context.WithCancel(ctx)
+				go func() { idleCB(cancelCtx) }()
 			}
 		}
 	}()
@@ -226,7 +260,7 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 			// sec := binary.LittleEndian.Uint64(buf[0:8])
 			// usec := binary.LittleEndian.Uint64(buf[8:16])
 			// ts := time.Unix(int64(sec), int64(usec)*1000)
-			atomic.AddInt32(&count, 1)
+			atomic.AddInt32(&keyPressCount, 1)
 		}
 	}
 }
