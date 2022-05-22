@@ -1,7 +1,9 @@
 GO = go
 LDFLAGS = -s -w
 
-build: pkg/colornames.csv.gz
+CNAMESFN := pkg/keyboard/colornames.csv.gz
+
+build: $(CNAMESFN)
 	$(GO) generate ./...
 	$(GO) build -ldflags='$(LDFLAGS)'
 
@@ -9,7 +11,7 @@ watch: .reflex_installed build
 	reflex -r '\.(go)$$' -d fancy -- $(MAKE) build
 
 # grab the list of simple color names (the full list is quite large)
-pkg/colornames.csv.gz:
+$(CNAMESFN):
 	curl -sS https://raw.githubusercontent.com/meodai/color-names/master/src/colornames.csv | \
 	  awk -F, '$$1 ~ /^[a-zA-Z]+$$/' | \
 	  gzip > $@
@@ -17,3 +19,6 @@ pkg/colornames.csv.gz:
 .reflex_installed:
 	which reflex >/dev/null 2>&1 || ( cd ~ && go install github.com/cespare/reflex@latest )
 	touch $@
+
+clean:
+	$(RM) .reflex_installed sys76-kb buildinfo/version.txt $(CNAMESFN)

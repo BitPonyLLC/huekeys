@@ -1,4 +1,4 @@
-package keyboard
+package patterns
 
 // colors arranged blue -> cyan -> green -> yellow -> orange -> red
 var coldHotColors = []string{

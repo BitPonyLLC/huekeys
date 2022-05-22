@@ -2,7 +2,8 @@ package cmd
 
 import (
 	"github.com/bambash/sys76-kb/internal/image_matcher"
-	keyboard "github.com/bambash/sys76-kb/pkg"
+	"github.com/bambash/sys76-kb/pkg/keyboard"
+
 	"github.com/spf13/cobra"
 )
 

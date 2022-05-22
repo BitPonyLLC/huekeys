@@ -9,7 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	keyboard "github.com/bambash/sys76-kb/pkg"
+	"github.com/bambash/sys76-kb/pkg/patterns"
+
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -41,19 +42,19 @@ func init() {
 	runCmd.Flags().IntVar(&priority, "nice", 10, "the priority level of the process")
 
 	addDelayPatternCmd("pulse", "pulse the keyboard brightness up and down",
-		&pulseDelay, keyboard.BrightnessPulse)
+		&pulseDelay, patterns.BrightnessPulse)
 
 	addDelayPatternCmd("rainbow", "loop through all the colors of the rainbow",
-		&rainbowDelay, keyboard.InfiniteRainbow)
+		&rainbowDelay, patterns.InfiniteRainbow)
 
 	addDelayPatternCmd("random", "constantly change the color to a random selection",
-		&randomDelay, keyboard.InfiniteRandom)
+		&randomDelay, patterns.InfiniteRandom)
 
 	addDelayPatternCmd("cpu", "change the color according to CPU utilization (cold to hot)",
-		&cpuDelay, keyboard.MonitorCPU)
+		&cpuDelay, patterns.MonitorCPU)
 
 	addPatternCmd("desktop", "monitor the desktop picture and change the keyboard color to match",
-		nil, func(_ *cobra.Command, _ []string) error { return keyboard.MatchDesktopBackground(cancelCtx) })
+		nil, func(_ *cobra.Command, _ []string) error { return patterns.MatchDesktopBackground(cancelCtx) })
 
 	typingPatternCmd := addPatternCmd("typing", "change the color according to typing speed (cold to hot)",
 		&typingDelay, getIdleCB())
@@ -111,32 +112,32 @@ func getIdleCB() func(*cobra.Command, []string) error {
 		case "pulse":
 			idleCB = func(ctx context.Context) {
 				log.Info().Str("pattern", idlePattern).Msg(startMsg)
-				keyboard.BrightnessPulse(ctx, pulseDelay)
+				patterns.BrightnessPulse(ctx, pulseDelay)
 			}
 		case "rainbow":
 			idleCB = func(ctx context.Context) {
 				log.Info().Str("pattern", idlePattern).Msg(startMsg)
-				keyboard.InfiniteRainbow(ctx, rainbowDelay)
+				patterns.InfiniteRainbow(ctx, rainbowDelay)
 			}
 		case "random":
 			idleCB = func(ctx context.Context) {
 				log.Info().Str("pattern", idlePattern).Msg(startMsg)
-				keyboard.InfiniteRandom(ctx, randomDelay)
+				patterns.InfiniteRandom(ctx, randomDelay)
 			}
 		case "cpu":
 			idleCB = func(ctx context.Context) {
 				log.Info().Str("pattern", idlePattern).Msg(startMsg)
-				keyboard.MonitorCPU(ctx, cpuDelay)
+				patterns.MonitorCPU(ctx, cpuDelay)
 			}
 		case "desktop":
 			idleCB = func(ctx context.Context) {
 				log.Info().Str("pattern", idlePattern).Msg(startMsg)
-				keyboard.MatchDesktopBackground(ctx)
+				patterns.MatchDesktopBackground(ctx)
 			}
 		default:
 			return fail(13, "unknown pattern: %s", idlePattern)
 		}
-		return keyboard.MonitorTyping(cancelCtx, typingDelay, inputEventID, idleCB)
+		return patterns.MonitorTyping(cancelCtx, typingDelay, inputEventID, idleCB)
 	}
 }
 
