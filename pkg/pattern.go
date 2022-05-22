@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"fmt"
 	"math"
 	"net/url"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"unicode"
 
 	"github.com/bambash/sys76-kb/internal/image_matcher"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // BrightnessPulse continuously dials up and down brightness
@@ -133,7 +134,7 @@ type cpuStats struct {
 func getCPUStats() *cpuStats {
 	f, err := os.Open("/proc/stat")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't open system stats: %v\n", err)
+		log.Error().Err(err).Msg("can't open system stats")
 		return nil
 	}
 	defer f.Close()
@@ -141,7 +142,7 @@ func getCPUStats() *cpuStats {
 	reader := bufio.NewReader(f)
 	line, err := reader.ReadString('\n')
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't read system stats: %v\n", err)
+		log.Error().Err(err).Msg("can't read system stats")
 		return nil
 	}
 
@@ -176,7 +177,7 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 	eventpath := "/dev/input/" + inputEventID
 	f, err := os.Open(eventpath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't open input events device (%s): %v\n", eventpath, err)
+		log.Error().Err(err).Str("eventpath", eventpath).Msg("can't open input events device")
 		return
 	}
 
@@ -190,7 +191,7 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 	for {
 		_, err := f.Read(buf)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "can't read input events device (%s): %v\n", eventpath, err)
+			log.Error().Err(err).Str("eventpath", eventpath).Msg("can't read input events device")
 			return
 		}
 
@@ -272,7 +273,7 @@ var keyboardEventRE = regexp.MustCompile(`[= ](event\d+)( |$)`)
 func getInputEventID() string {
 	f, err := os.Open("/proc/bus/input/devices")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't open input devices list: %v\n", err)
+		log.Error().Err(err).Msg("can't open input devices list")
 		return ""
 	}
 	defer f.Close()
@@ -323,7 +324,7 @@ func MatchDesktopBackground(ctx context.Context) {
 
 	pictureURL, err := url.Parse(pictureURIStr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't parse %s: %v\n", pictureURIStr, err)
+		log.Error().Err(err).Str("picture-uri", pictureURIStr).Msg("can't parse")
 		return
 	}
 
@@ -332,13 +333,13 @@ func MatchDesktopBackground(ctx context.Context) {
 	cmd := newDesktopSettingCmd("monitor", "background", pictureGroup)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't get stdout of monitor for gnome background picture url: %v\n", err)
+		log.Error().Err(err).Msg("can't get stdout of desktop background monitor")
 		return
 	}
 
 	err = cmd.Start()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't start monitor for gnome background picture url: %v\n", err)
+		log.Error().Err(err).Msg("can't start desktop background monitor")
 		return
 	}
 
@@ -346,9 +347,13 @@ func MatchDesktopBackground(ctx context.Context) {
 
 	go func() {
 		state, err := backgroundProcess.Wait()
-		if !stopRequested {
-			fmt.Fprintf(os.Stderr, "gnome background monitor has stopped (%v): %v\n", state, err)
+		var ev *zerolog.Event
+		if stopRequested {
+			ev = log.Debug()
+		} else {
+			ev = log.Error()
 		}
+		ev.Err(err).Interface("state", state).Msg("desktop background monitor has stopped")
 	}()
 
 	go func() {
@@ -357,7 +362,7 @@ func MatchDesktopBackground(ctx context.Context) {
 			line := scanner.Text()
 			m := pictureURIMonitorRE.FindStringSubmatch(line)
 			if m == nil || len(m) < 2 || m[1] == "" {
-				fmt.Fprintf(os.Stderr, "ignoring line found in monitor output: %s\n", line)
+				log.Warn().Str("line", line).Msg("ignoring unknown content from desktop background monitor")
 				continue
 			}
 			setColorFrom(m[1])
@@ -371,11 +376,12 @@ func MatchDesktopBackground(ctx context.Context) {
 func StopDesktopBackgroundMonitor() {
 	if backgroundProcess != nil {
 		p := backgroundProcess
+		log.Debug().Int("pid", p.Pid).Msg("stopping desktop background monitor")
 		backgroundProcess = nil
 		stopRequested = true
 		err := p.Kill()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "cant' kill gnome background monitor: %v\n", err)
+			log.Error().Err(err).Int("pid", p.Pid).Msg("can't kill desktop background monitor")
 		}
 	}
 }
@@ -392,7 +398,7 @@ func newDesktopSettingCmd(action, group, key string) *exec.Cmd {
 			args = []string{"-Eu", sudoUser, "gsettings"}
 			if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
 				// we need access to the user's gnome session in order to look up correct setting values
-				panic("running as root without user environment: add `-E` when invoking sudo")
+				log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
 			}
 		}
 	}
@@ -407,7 +413,7 @@ func getDesktopSetting(group, key string) (string, error) {
 	// TODO: consider using D-Bus directly instead of gsettings...
 	val, err := newDesktopSettingCmd("get", group, key).Output()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't get %s %s: %v\n", group, key, err)
+		log.Error().Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
 		return "", err
 	}
 
@@ -418,13 +424,13 @@ func getDesktopSetting(group, key string) (string, error) {
 func setColorFrom(u string) {
 	pictureURL, err := url.Parse(u)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't parse picture uri (%s): %v\n", u, err)
+		log.Error().Err(err).Str("uri", u).Msg("can't parse picture uri")
 		return
 	}
 
 	color, err := image_matcher.GetDominantColorOf(pictureURL.Path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't get dominant color: %v\n", err)
+		log.Error().Err(err).Msg("can't determine dominant color")
 		return
 	}
 
