@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	keyboard "github.com/bambash/sys76-kb/pkg"
 	"github.com/spf13/cobra"
 )
@@ -28,24 +25,22 @@ var setCmd = &cobra.Command{
 	Use:   "set",
 	Short: "Sets the color and brightness of the keyboard",
 	Long:  `Sets the color and brightness of the keyboard`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if ListColors {
 			keyboard.EachPresetColor(func(name, value string) {
-				fmt.Printf("%s = %s\n", name, value)
+				cmd.Printf("%s = %s\n", name, value)
 			})
 		}
 		if Color != "" {
 			err := keyboard.ColorFileHandler(Color)
 			if err != nil {
-				cmd.PrintErrln(err)
-				os.Exit(1)
+				return fail(11, err)
 			}
 		}
 		if Brightness != "" {
 			err := keyboard.BrightnessFileHandler(Brightness)
 			if err != nil {
-				cmd.PrintErrln(err)
-				os.Exit(2)
+				return fail(12, err)
 			}
 		}
 	},
