@@ -90,7 +90,7 @@ func addPatternCmd(use, short string, delay *time.Duration, runE func(*cobra.Com
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,
-		PreRunE: func(_ *cobra.Command, _ []string) error {
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			err := checkAndSetPidPath(pidpath)
 			if err != nil {
 				return fail(11, err)
@@ -99,6 +99,8 @@ func addPatternCmd(use, short string, delay *time.Duration, runE func(*cobra.Com
 			if err != nil {
 				return fail(12, err)
 			}
+			log.Logger = log.With().Str("cmd", cmd.Use).Logger()
+			log.Info().Msg("starting")
 			return nil
 		},
 		RunE: runE,

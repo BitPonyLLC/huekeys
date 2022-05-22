@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"net/url"
 	"os"
@@ -200,6 +201,8 @@ func getCPUStats() (*cpuStats, error) {
 	return stats, nil
 }
 
+var stopRequested = false
+
 // MonitorTyping sets the keyboard colors acccording to rate of typing
 func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string, idleCB func(context.Context)) error {
 	if inputEventID == "" {
@@ -223,30 +226,12 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 	}
 
 	go setTypingColor(ctx, delay, &keyPressCount, idleCB)
+	go processTypingEvents(f, eventpath, &keyPressCount)
 
-	// https://janczer.github.io/work-with-dev-input/
-	buf := make([]byte, 24)
-	for {
-		_, err := f.Read(buf)
-		if err != nil {
-			return fmt.Errorf("can't read input events device (%s): %w", eventpath, err)
-		}
+	<-ctx.Done()
+	stopRequested = true
 
-		typ := binary.LittleEndian.Uint16(buf[16:18])
-		// code := binary.LittleEndian.Uint16(buf[18:20])
-
-		var value int32
-		binary.Read(bytes.NewReader(buf[20:]), binary.LittleEndian, &value)
-
-		// we only care when typ is EV_KEY and value indicates "pressed"
-		// https://github.com/torvalds/linux/blob/v5.17/include/uapi/linux/input-event-codes.h#L34-L51
-		if typ == 1 && value == 1 {
-			// sec := binary.LittleEndian.Uint64(buf[0:8])
-			// usec := binary.LittleEndian.Uint64(buf[8:16])
-			// ts := time.Unix(int64(sec), int64(usec)*1000)
-			atomic.AddInt32(&keyPressCount, 1)
-		}
-	}
+	return nil
 }
 
 func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int32, idleCB func(context.Context)) {
@@ -310,6 +295,33 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 	}
 }
 
+func processTypingEvents(eventF io.Reader, eventpath string, keyPressCount *int32) {
+	// https://janczer.github.io/work-with-dev-input/
+	buf := make([]byte, 24)
+	for !stopRequested {
+		_, err := eventF.Read(buf)
+		if err != nil {
+			log.Error().Err(err).Str("path", eventpath).Msg("can't read input events device")
+			return
+		}
+
+		typ := binary.LittleEndian.Uint16(buf[16:18])
+		// code := binary.LittleEndian.Uint16(buf[18:20])
+
+		var value int32
+		binary.Read(bytes.NewReader(buf[20:]), binary.LittleEndian, &value)
+
+		// we only care when typ is EV_KEY and value indicates "pressed"
+		// https://github.com/torvalds/linux/blob/v5.17/include/uapi/linux/input-event-codes.h#L34-L51
+		if typ == 1 && value == 1 {
+			// sec := binary.LittleEndian.Uint64(buf[0:8])
+			// usec := binary.LittleEndian.Uint64(buf[8:16])
+			// ts := time.Unix(int64(sec), int64(usec)*1000)
+			atomic.AddInt32(keyPressCount, 1)
+		}
+	}
+}
+
 var keyboardEventRE = regexp.MustCompile(`[= ](event\d+)( |$)`)
 
 func getInputEventID() (string, error) {
@@ -345,7 +357,6 @@ func getInputEventID() (string, error) {
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
 var backgroundProcess *os.Process
-var stopRequested = false
 
 func MatchDesktopBackground(ctx context.Context) error {
 	colorScheme, err := getDesktopSetting("interface", "color-scheme")
