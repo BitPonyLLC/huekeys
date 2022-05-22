@@ -1,6 +1,6 @@
 module github.com/bambash/sys76-kb
 
-go 1.17
+go 1.18
 
 require (
 	github.com/EdlinOrg/prominentcolor v1.0.0

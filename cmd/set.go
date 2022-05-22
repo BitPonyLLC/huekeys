@@ -31,17 +31,21 @@ var setCmd = &cobra.Command{
 				cmd.Printf("%s = %s\n", name, value)
 			})
 		}
+
 		if Color != "" {
 			err := keyboard.ColorFileHandler(Color)
 			if err != nil {
 				return fail(11, err)
 			}
 		}
+
 		if Brightness != "" {
 			err := keyboard.BrightnessFileHandler(Brightness)
 			if err != nil {
 				return fail(12, err)
 			}
 		}
+
+		return nil
 	},
 }

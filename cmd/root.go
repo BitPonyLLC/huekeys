@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/syslog"
 	"os"
+	"runtime/debug"
 
 	keyboard "github.com/bambash/sys76-kb/pkg"
 	"github.com/rs/zerolog"
@@ -41,6 +42,12 @@ Complete documentation is available at https://github.com/bambash/sys76-kb`,
 // Execute is the primary entrypoint for this CLI
 func Execute() {
 	rootCmd.SetOut(os.Stdout) // default is stderr
+
+	info, _ := debug.ReadBuildInfo()
+	fmt.Println(info)
+
+	// rootCmd.Version = fmt.Sprintf("%s")
+
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", logLevel, "set logging level: debug, info, warn, error")
 	rootCmd.PersistentFlags().StringVar(&logPath, "log-path", logPath, "set pathname for storing logs (default: syslog)")
 
