@@ -10,94 +10,55 @@ import (
 	"time"
 
 	keyboard "github.com/bambash/sys76-kb/pkg"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 var pidpath = "/tmp/sys76-kb.pid"
 var priority = 10
 
+var cancelCtx context.Context
+var cancelFunc func()
+
+var runCmd = &cobra.Command{
+	Use:   "run",
+	Short: "runs a backlight pattern",
+}
+
 func init() {
-	runCmd := &cobra.Command{
-		Use:   "run",
-		Short: "runs a backlight pattern",
-	}
-	runCmd.Flags().StringVar(&pidpath, "pidpath", pidpath, "pathname of the pidfile")
-	runCmd.Flags().IntVar(&priority, "nice", 10, "the priority level of the process")
 	rootCmd.AddCommand(runCmd)
 
-	var patternCmd *cobra.Command
-
-	addDelayFlag := func(delay *time.Duration) {
-		patternCmd.Flags().DurationVarP(delay, "delay", "d", *delay,
-			"the amount of time to wait between updates (units: ns, us, ms, s, m, h)")
-	}
+	runCmd.Flags().StringVar(&pidpath, "pidpath", pidpath, "pathname of the pidfile")
+	runCmd.Flags().IntVar(&priority, "nice", 10, "the priority level of the process")
 
 	pulseDelay := 25 * time.Millisecond
-	patternCmd = &cobra.Command{
-		Use:     "pulse",
-		Short:   "pulse the keyboard brightness up and down",
-		PreRun:  preRun,
-		PostRun: postRun,
-		Run:     func(_ *cobra.Command, _ []string) { keyboard.BrightnessPulse(context.Background(), pulseDelay) },
-	}
-	addDelayFlag(&pulseDelay)
-	runCmd.AddCommand(patternCmd)
+	addDelayPatternCmd("pulse", "pulse the keyboard brightness up and down",
+		&pulseDelay, keyboard.BrightnessPulse)
 
-	rainbowDelay := time.Nanosecond
-	patternCmd = &cobra.Command{
-		Use:     "rainbow",
-		Short:   "loop through all the colors of the rainbow",
-		PreRun:  preRun,
-		PostRun: postRun,
-		Run:     func(_ *cobra.Command, _ []string) { keyboard.InfiniteRainbow(context.Background(), rainbowDelay) },
-	}
-	addDelayFlag(&rainbowDelay)
-	runCmd.AddCommand(patternCmd)
+	rainbowDelay := 1 * time.Nanosecond
+	addDelayPatternCmd("rainbow", "loop through all the colors of the rainbow",
+		&rainbowDelay, keyboard.InfiniteRainbow)
 
 	randomDelay := 1 * time.Second
-	patternCmd = &cobra.Command{
-		Use:     "random",
-		Short:   "constantly change the color to a random selection",
-		PreRun:  preRun,
-		PostRun: postRun,
-		Run: func(_ *cobra.Command, _ []string) {
-			keyboard.InfiniteRandom(context.Background(), randomDelay)
-		},
-	}
-	addDelayFlag(&randomDelay)
-	runCmd.AddCommand(patternCmd)
+	addDelayPatternCmd("random", "constantly change the color to a random selection",
+		&randomDelay, keyboard.InfiniteRandom)
 
 	cpuDelay := 1 * time.Second
-	patternCmd = &cobra.Command{
-		Use:     "cpu",
-		Short:   "change the color according to CPU utilization (cold to hot)",
-		PreRun:  preRun,
-		PostRun: postRun,
-		Run:     func(_ *cobra.Command, _ []string) { keyboard.MonitorCPU(context.Background(), cpuDelay) },
-	}
-	addDelayFlag(&cpuDelay)
-	runCmd.AddCommand(patternCmd)
+	addDelayPatternCmd("cpu", "change the color according to CPU utilization (cold to hot)",
+		&cpuDelay, keyboard.MonitorCPU)
 
-	patternCmd = &cobra.Command{
-		Use:     "desktop",
-		Short:   "monitor the desktop picture and change the keyboard color to match",
-		PreRun:  preRun,
-		PostRun: postRun,
-		Run:     func(_ *cobra.Command, _ []string) { keyboard.MatchDesktopBackground(context.Background()) },
-	}
-	runCmd.AddCommand(patternCmd)
+	addPatternCmd("desktop", "monitor the desktop picture and change the keyboard color to match",
+		nil, func(_ *cobra.Command, _ []string) error { return keyboard.MatchDesktopBackground(cancelCtx) })
 
-	typingDelay := 300 * time.Millisecond
 	inputEventID := ""
 	idlePattern := ""
-	patternCmd = &cobra.Command{
-		Use:     "typing",
-		Short:   "change the color according to typing speed (cold to hot)",
-		PreRun:  preRun,
-		PostRun: postRun,
-		Run: func(cmd *cobra.Command, _ []string) {
+	typingDelay := 300 * time.Millisecond
+	typingPatternCmd := addPatternCmd("typing", "change the color according to typing speed (cold to hot)",
+		&typingDelay,
+		func(_ *cobra.Command, _ []string) error {
 			var idleCB func(context.Context)
 			switch idlePattern {
+			case "":
 			case "pulse":
 				idleCB = func(ctx context.Context) { keyboard.BrightnessPulse(ctx, pulseDelay) }
 			case "rainbow":
@@ -109,35 +70,50 @@ func init() {
 			case "desktop":
 				idleCB = func(ctx context.Context) { keyboard.MatchDesktopBackground(ctx) }
 			default:
-				cmd.PrintErrln("unknown pattern:", idlePattern)
-				os.Exit(3)
+				return fail(13, "unknown pattern: %s", idlePattern)
 			}
-			keyboard.MonitorTyping(context.Background(), typingDelay, inputEventID, idleCB)
+			return keyboard.MonitorTyping(cancelCtx, typingDelay, inputEventID, idleCB)
+		})
+
+	typingPatternCmd.Flags().StringVar(&inputEventID, "input-event-id", inputEventID, "input event ID to monitor")
+	typingPatternCmd.Flags().StringVarP(&idlePattern, "idle", "i", idlePattern,
+		"name of pattern to run while keyboard is idle for more than 30 seconds")
+}
+
+func addDelayPatternCmd(use, short string, delay *time.Duration, patternFunc func(context.Context, time.Duration) error) {
+	addPatternCmd(use, short, delay, func(_ *cobra.Command, _ []string) error {
+		return patternFunc(cancelCtx, *delay)
+	})
+}
+
+func addPatternCmd(use, short string, delay *time.Duration, runE func(*cobra.Command, []string) error) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		PreRunE: func(_ *cobra.Command, _ []string) error {
+			err := checkAndSetPidPath(pidpath)
+			if err != nil {
+				return fail(11, err)
+			}
+			err = beNice(priority)
+			if err != nil {
+				return fail(12, err)
+			}
+			return nil
+		},
+		RunE: runE,
+		PostRun: func(_ *cobra.Command, _ []string) {
+			os.Remove(pidpath)
 		},
 	}
-	addDelayFlag(&typingDelay)
-	patternCmd.Flags().StringVar(&inputEventID, "input-event-id", inputEventID, "input event ID to monitor")
-	patternCmd.Flags().StringVarP(&idlePattern, "idle", "i", idlePattern,
-		"name of pattern to run while keyboard is idle for more than 30 seconds")
-	runCmd.AddCommand(patternCmd)
-}
 
-func preRun(cmd *cobra.Command, args []string) {
-	err := checkAndSetPidPath(pidpath)
-	if err != nil {
-		cmd.PrintErr(err)
-		os.Exit(1)
+	if delay != nil {
+		cmd.Flags().DurationVarP(delay, "delay", "d", *delay,
+			"the amount of time to wait between updates (units: ns, us, ms, s, m, h)")
 	}
 
-	err = beNice(priority)
-	if err != nil {
-		cmd.PrintErr(err)
-		os.Exit(2)
-	}
-}
-
-func postRun(cmd *cobra.Command, args []string) {
-	os.Remove(pidpath)
+	runCmd.AddCommand(cmd)
+	return cmd
 }
 
 func checkAndSetPidPath(pidpath string) error {
@@ -169,13 +145,14 @@ func checkAndSetPidPath(pidpath string) error {
 		return fmt.Errorf("unable to write to %s: %w", pidpath, err)
 	}
 
+	cancelCtx, cancelFunc = context.WithCancel(context.Background())
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-stop
-		keyboard.StopDesktopBackgroundMonitor()
-		os.Remove(pidpath)
-		os.Exit(0)
+		sig := <-stop
+		log.Info().Str("signal", sig.String()).Msg("stopping")
+		cancelFunc()
 	}()
 
 	return nil

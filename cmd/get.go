@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/bambash/sys76-kb/internal/image_matcher"
 	keyboard "github.com/bambash/sys76-kb/pkg"
 	"github.com/spf13/cobra"
@@ -17,18 +14,26 @@ var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Gets the color and brightness of the keyboard",
 	Long:  `Gets the color and brightness of the keyboard`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("brightness =", keyboard.GetCurrentBrightness())
-		for key, color := range keyboard.GetCurrentColors() {
-			fmt.Printf("%s = %s\n", key, color)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		brightness, err := keyboard.GetCurrentBrightness()
+		if err != nil {
+			return fail(11, err)
+		}
+		cmd.Println("brightness =", brightness)
+		colors, err := keyboard.GetCurrentColors()
+		if err != nil {
+			return fail(12, err)
+		}
+		for key, color := range colors {
+			cmd.Printf("%s = %s\n", key, color)
 		}
 		for _, arg := range args {
 			color, err := image_matcher.GetDominantColorOf(arg)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "can't determine dominant color of %s: %v\n", arg, err)
-				os.Exit(1)
+				return fail(13, "can't determine dominant color of %s: %w", arg, err)
 			}
-			fmt.Printf("%s = %s\n", arg, color)
+			cmd.Printf("%s = %s\n", arg, color)
 		}
+		return nil
 	},
 }

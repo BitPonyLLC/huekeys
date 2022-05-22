@@ -42,7 +42,11 @@ var setCmd = &cobra.Command{
 			}
 		}
 		if Brightness != "" {
-			keyboard.BrightnessFileHandler(Brightness)
+			err := keyboard.BrightnessFileHandler(Brightness)
+			if err != nil {
+				cmd.PrintErrln(err)
+				os.Exit(2)
+			}
 		}
 	},
 }

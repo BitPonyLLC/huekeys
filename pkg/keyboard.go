@@ -7,12 +7,13 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // RGBColor represents Red Green and Blue values of a color
@@ -51,14 +52,13 @@ type SysPath struct {
 
 var foundSysPath *SysPath
 
-func init() {
+func LoadEmbeddedColors() error {
 	rand.Seed(time.Now().UnixMilli())
 
 	gzReader := strings.NewReader(colorNamesCSVGZ)
 	reader, err := gzip.NewReader(gzReader)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't read embedded colors: %v\n", err)
-		return
+		return fmt.Errorf("can't read embedded colors: %w", err)
 	}
 	defer reader.Close()
 
@@ -72,7 +72,7 @@ func init() {
 		line := scanner.Text()
 		columns := strings.Split(line, ",")
 		if len(columns) < 2 {
-			fmt.Fprintln(os.Stderr, "ignoring line from embedded colors (count):", line)
+			log.Warn().Str("line", line).Int("len", len(columns)).Msg("ignoring line from embedded colors")
 			continue
 		}
 		name := strings.ToLower(columns[0])
@@ -83,11 +83,13 @@ func init() {
 		rgb := RGBColor{}
 		n, _ := fmt.Sscanf(hex, rgbHexFormat, &rgb.Red, &rgb.Green, &rgb.Blue)
 		if n != 3 {
-			fmt.Fprintln(os.Stderr, "ignoring line from embedded colors (parse):", line)
+			log.Warn().Str("line", line).Int("n", n).Msg("ignoring line from embedded colors")
 			continue
 		}
 		presetColors[name] = rgb
 	}
+
+	return nil
 }
 
 // GetColorInHex returns a color in HEX format
@@ -169,45 +171,42 @@ func ColorFileHandler(color string) error {
 		p := fmt.Sprintf("%v/%v", sys.Path, file)
 		fh, err := os.OpenFile(p, os.O_RDWR, 0755)
 		if err != nil {
-			log.Print(err)
+			log.Warn().Err(err).Str("path", sys.Path).Msg("can't open")
 			continue
 		}
-		fh.WriteString(color)
+		_, err = fh.WriteString(color)
+		if err != nil {
+			log.Warn().Err(err).Str("path", sys.Path).Msg("can't set color")
+			continue
+		}
 		fh.Close()
 	}
 	return nil
 }
 
 // BrightnessFileHandler writes a hex value to brightness, and returns the bytes written
-func BrightnessFileHandler(c string) int {
+func BrightnessFileHandler(c string) error {
 	sys := getSysPath()
 	p := fmt.Sprintf("%v/brightness", sys.Path)
+
 	f, err := os.OpenFile(p, os.O_RDWR, 0755)
-
 	if err != nil {
-		log.Fatal(err)
-		return 0
+		return fmt.Errorf("can't open brightness file (%s): %w", p, err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(c)
+	if err != nil {
+		return fmt.Errorf("can't set brightness value (%s): %w", p, err)
 	}
 
-	l, err := f.WriteString(c)
-	if err != nil {
-		log.Fatal(err)
-		f.Close()
-		return 0
-	}
-
-	err = f.Close()
-	if err != nil {
-		log.Fatal(err)
-		return 0
-	}
-	return l
+	return nil
 }
 
-func GetCurrentColors() map[string]string {
+func GetCurrentColors() (map[string]string, error) {
 	sys := getSysPath()
 	if sys.Path == "" {
-		log.Fatal("can't get a valid sysfs leds path")
+		return nil, errors.New("can't get a valid sysfs leds path")
 	}
 	ret := map[string]string{}
 	for _, file := range sys.Files {
@@ -224,32 +223,31 @@ func GetCurrentColors() map[string]string {
 		buf := make([]byte, 6)
 		_, err = fh.Read(buf)
 		if err != nil {
-			log.Fatal(err)
+			log.Warn().Err(err).Str("path", p).Msg("read failed")
 			continue
 		}
 		ret[file] = getColorOf(string(buf))
 	}
-	return ret
+	return ret, nil
 }
 
-func GetCurrentBrightness() string {
+func GetCurrentBrightness() (string, error) {
 	sys := getSysPath()
 	p := fmt.Sprintf("%v/brightness", sys.Path)
 	f, err := os.Open(p)
 	if err != nil {
-		log.Fatal(err)
-		return ""
+		return "", fmt.Errorf("can't open %s: %w", p, err)
 	}
 	defer f.Close()
 	buf := make([]byte, 3)
 	_, err = f.Read(buf)
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("can't read %s: %w", p, err)
 	}
 	// make sure we don't include the null byte if it's included
 	length := bytes.IndexByte(buf, 0)
 	if length < 0 {
 		length = len(buf)
 	}
-	return strings.TrimSpace(string(buf[0:length]))
+	return strings.TrimSpace(string(buf[0:length])), nil
 }
