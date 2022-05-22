@@ -6,8 +6,8 @@ import (
 	"io"
 	"log/syslog"
 	"os"
-	"runtime/debug"
 
+	"github.com/bambash/sys76-kb/buildinfo"
 	keyboard "github.com/bambash/sys76-kb/pkg"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -20,10 +20,9 @@ var logPath = ""
 var logF *os.File
 
 var rootCmd = &cobra.Command{
-	Use:   "sys76-kb",
-	Short: "sys76-kb is a keyboard controller for System76 laptops",
-	Long: `A simple keyboard contoller built with love by bambash in Go.
-Complete documentation is available at https://github.com/bambash/sys76-kb`,
+	Use:          buildinfo.Name,
+	Short:        buildinfo.Description,
+	Version:      buildinfo.All,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		err := keyboard.LoadEmbeddedColors()
@@ -42,11 +41,6 @@ Complete documentation is available at https://github.com/bambash/sys76-kb`,
 // Execute is the primary entrypoint for this CLI
 func Execute() {
 	rootCmd.SetOut(os.Stdout) // default is stderr
-
-	info, _ := debug.ReadBuildInfo()
-	fmt.Println(info)
-
-	// rootCmd.Version = fmt.Sprintf("%s")
 
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", logLevel, "set logging level: debug, info, warn, error")
 	rootCmd.PersistentFlags().StringVar(&logPath, "log-path", logPath, "set pathname for storing logs (default: syslog)")

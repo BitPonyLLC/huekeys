@@ -2,6 +2,7 @@ GO = go
 LDFLAGS = -s -w
 
 build: pkg/colornames.csv.gz
+	$(GO) generate ./...
 	$(GO) build -ldflags='$(LDFLAGS)'
 
 watch: .reflex_installed build
