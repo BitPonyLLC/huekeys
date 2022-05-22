@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	keyboard "github.com/bambash/sys76-kb/pkg"
 	"github.com/spf13/cobra"
@@ -34,7 +35,11 @@ var setCmd = &cobra.Command{
 			})
 		}
 		if Color != "" {
-			keyboard.ColorFileHandler(Color)
+			err := keyboard.ColorFileHandler(Color)
+			if err != nil {
+				cmd.PrintErrln(err)
+				os.Exit(1)
+			}
 		}
 		if Brightness != "" {
 			keyboard.BrightnessFileHandler(Brightness)

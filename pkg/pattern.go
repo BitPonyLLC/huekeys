@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"net/url"
 	"os"
@@ -42,7 +43,7 @@ func BrightnessPulse(ctx context.Context, delay time.Duration) {
 }
 
 // InfiniteRainbow generates... an infinite rainbow
-func InfiniteRainbow(ctx context.Context, delay time.Duration) {
+func InfiniteRainbow(ctx context.Context, delay time.Duration) error {
 	var currentColor string
 	var currentColorOffset int
 
@@ -92,9 +93,14 @@ func InfiniteRainbow(ctx context.Context, delay time.Duration) {
 	for {
 		for i := currentColorOffset; i < len(colors); i++ {
 			c := colors[i]
-			ColorFileHandler(c)
+
+			err := ColorFileHandler(c)
+			if err != nil {
+				return err
+			}
+
 			if sleep(ctx, delay) {
-				return
+				return nil
 			}
 		}
 		currentColorOffset = 0 // only used on first pass
@@ -102,27 +108,44 @@ func InfiniteRainbow(ctx context.Context, delay time.Duration) {
 }
 
 // InfinitRandom sets the keyboard colors to random values forever
-func InfiniteRandom(ctx context.Context, delay time.Duration) {
+func InfiniteRandom(ctx context.Context, delay time.Duration) error {
 	for {
-		ColorFileHandler(RandomColor)
+		err := ColorFileHandler(RandomColor)
+		if err != nil {
+			return err
+		}
+
 		if sleep(ctx, delay) {
-			return
+			return nil
 		}
 	}
 }
 
 // MonitorCPU sets the keyboard colors according to CPU utilization
-func MonitorCPU(ctx context.Context, delay time.Duration) {
+func MonitorCPU(ctx context.Context, delay time.Duration) error {
 	for {
-		previous := getCPUStats()
-		if sleep(ctx, delay) {
-			return
+		previous, err := getCPUStats()
+		if err != nil {
+			return err
 		}
-		current := getCPUStats()
+
+		if sleep(ctx, delay) {
+			return nil
+		}
+
+		current, err := getCPUStats()
+		if err != nil {
+			return err
+		}
+
 		cpuPercentage := float64(current.active-previous.active) / float64(current.total-previous.total)
 		i := int(math.Round(float64(len(coldHotColors)-1) * cpuPercentage))
 		color := coldHotColors[i]
-		ColorFileHandler(color)
+
+		err = ColorFileHandler(color)
+		if err != nil {
+			return err
+		}
 	}
 }
 
@@ -131,19 +154,17 @@ type cpuStats struct {
 	total  int
 }
 
-func getCPUStats() *cpuStats {
+func getCPUStats() (*cpuStats, error) {
 	f, err := os.Open("/proc/stat")
 	if err != nil {
-		log.Error().Err(err).Msg("can't open system stats")
-		return nil
+		return nil, fmt.Errorf("can't open system stats: %w", err)
 	}
 	defer f.Close()
 
 	reader := bufio.NewReader(f)
 	line, err := reader.ReadString('\n')
 	if err != nil {
-		log.Error().Err(err).Msg("can't read system stats")
-		return nil
+		return nil, fmt.Errorf("can't read system stats: %w", err)
 	}
 
 	parts := strings.Split(line, " ")
@@ -162,27 +183,30 @@ func getCPUStats() *cpuStats {
 	stats := &cpuStats{active: user + system + nice + softirq + steal}
 	stats.total = stats.active + idle + iowait
 
-	return stats
+	return stats, nil
 }
 
 // MonitorTyping sets the keyboard colors acccording to rate of typing
-func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string, idleCB func(context.Context)) {
+func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string, idleCB func(context.Context)) error {
 	if inputEventID == "" {
-		inputEventID = getInputEventID()
-		if inputEventID == "" {
-			return
+		var err error
+		inputEventID, err = getInputEventID()
+		if err != nil {
+			return err
 		}
 	}
 
 	eventpath := "/dev/input/" + inputEventID
 	f, err := os.Open(eventpath)
 	if err != nil {
-		log.Error().Err(err).Str("eventpath", eventpath).Msg("can't open input events device")
-		return
+		return fmt.Errorf("can't open input events device (%s): %w", eventpath, err)
 	}
 
 	keyPressCount := int32(0)
-	ColorFileHandler(coldHotColors[0])
+	err = ColorFileHandler(coldHotColors[0])
+	if err != nil {
+		return err
+	}
 
 	go setTypingColor(ctx, delay, &keyPressCount, idleCB)
 
@@ -191,8 +215,7 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 	for {
 		_, err := f.Read(buf)
 		if err != nil {
-			log.Error().Err(err).Str("eventpath", eventpath).Msg("can't read input events device")
-			return
+			return fmt.Errorf("can't read input events device (%s): %w", eventpath, err)
 		}
 
 		typ := binary.LittleEndian.Uint16(buf[16:18])
@@ -221,10 +244,7 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 
 	for {
 		if sleep(ctx, delay) {
-			if cancelFunc != nil {
-				cancelFunc()
-			}
-			return
+			break
 		}
 
 		i := int(atomic.LoadInt32(keyPressCount))
@@ -235,7 +255,11 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 		// don't bother setting the same value
 		if i != lastIndex {
 			color := coldHotColors[i]
-			ColorFileHandler(color)
+			err := ColorFileHandler(color)
+			if err != nil {
+				log.Error().Err(err).Msg("can't set typing color")
+				break
+			}
 			lastIndex = i
 		}
 
@@ -266,15 +290,18 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 			go func() { idleCB(cancelCtx) }()
 		}
 	}
+
+	if cancelFunc != nil {
+		cancelFunc()
+	}
 }
 
 var keyboardEventRE = regexp.MustCompile(`[= ](event\d+)( |$)`)
 
-func getInputEventID() string {
+func getInputEventID() (string, error) {
 	f, err := os.Open("/proc/bus/input/devices")
 	if err != nil {
-		log.Error().Err(err).Msg("can't open input devices list")
-		return ""
+		return "", fmt.Errorf("can't open input devices list: %w", err)
 	}
 	defer f.Close()
 
@@ -293,54 +320,51 @@ func getInputEventID() string {
 			if found {
 				match := keyboardEventRE.FindStringSubmatch(line)
 				if match != nil {
-					return match[1]
+					return match[1], nil
 				}
 			}
 		}
 	}
 
-	return ""
+	return "", fmt.Errorf("can't find a keyboard input device")
 }
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
 var backgroundProcess *os.Process
 var stopRequested = false
 
-func MatchDesktopBackground(ctx context.Context) {
+func MatchDesktopBackground(ctx context.Context) error {
 	colorScheme, err := getDesktopSetting("interface", "color-scheme")
 	if err != nil {
-		return
+		return err
 	}
 
-	pictureGroup := "picture-uri"
+	pictureKey := "picture-uri"
 	if colorScheme == "prefer-dark" {
-		pictureGroup += "-dark"
+		pictureKey += "-dark"
 	}
 
-	pictureURIStr, err := getDesktopSetting("background", pictureGroup)
+	pictureURIStr, err := getDesktopSetting("background", pictureKey)
 	if err != nil {
-		return
+		return err
 	}
 
 	pictureURL, err := url.Parse(pictureURIStr)
 	if err != nil {
-		log.Error().Err(err).Str("picture-uri", pictureURIStr).Msg("can't parse")
-		return
+		return fmt.Errorf("can't parse picture URI (%s): %w", pictureURIStr, err)
 	}
 
 	setColorFrom(pictureURL.Path)
 
-	cmd := newDesktopSettingCmd("monitor", "background", pictureGroup)
+	cmd := newDesktopSettingCmd("monitor", "background", pictureKey)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Error().Err(err).Msg("can't get stdout of desktop background monitor")
-		return
+		return fmt.Errorf("can't get stdout of desktop background monitor: %w", err)
 	}
 
 	err = cmd.Start()
 	if err != nil {
-		log.Error().Err(err).Msg("can't start desktop background monitor")
-		return
+		return fmt.Errorf("can't start desktop background monitor: %w", err)
 	}
 
 	backgroundProcess = cmd.Process
@@ -371,6 +395,7 @@ func MatchDesktopBackground(ctx context.Context) {
 
 	<-ctx.Done()
 	StopDesktopBackgroundMonitor()
+	return nil
 }
 
 func StopDesktopBackgroundMonitor() {
@@ -421,20 +446,18 @@ func getDesktopSetting(group, key string) (string, error) {
 	return string(val), nil
 }
 
-func setColorFrom(u string) {
+func setColorFrom(u string) error {
 	pictureURL, err := url.Parse(u)
 	if err != nil {
-		log.Error().Err(err).Str("uri", u).Msg("can't parse picture uri")
-		return
+		return fmt.Errorf("can't parse picture URI (%s): %w", pictureURL, err)
 	}
 
 	color, err := image_matcher.GetDominantColorOf(pictureURL.Path)
 	if err != nil {
-		log.Error().Err(err).Msg("can't determine dominant color")
-		return
+		return fmt.Errorf("can't determine dominant color: %w", err)
 	}
 
-	ColorFileHandler(color)
+	return ColorFileHandler(color)
 }
 
 func sleep(ctx context.Context, delay time.Duration) bool {

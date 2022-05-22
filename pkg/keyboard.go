@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -151,10 +152,10 @@ func EachPresetColor(cb func(name, value string)) {
 }
 
 // ColorFileHandler writes a string to colorFiles
-func ColorFileHandler(color string) {
+func ColorFileHandler(color string) error {
 	sys := getSysPath()
 	if sys.Path == "" {
-		log.Fatal("can't get a valid sysfs leds path")
+		return errors.New("can't get a valid sysfs leds path")
 	}
 	if presetColor, exists := presetColors[color]; exists {
 		color = presetColor.GetColorInHex()
@@ -174,6 +175,7 @@ func ColorFileHandler(color string) {
 		fh.WriteString(color)
 		fh.Close()
 	}
+	return nil
 }
 
 // BrightnessFileHandler writes a hex value to brightness, and returns the bytes written
