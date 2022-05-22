@@ -56,19 +56,36 @@ func init() {
 	typingPatternCmd := addPatternCmd("typing", "change the color according to typing speed (cold to hot)",
 		&typingDelay,
 		func(_ *cobra.Command, _ []string) error {
+			const startMsg = "starting background pattern"
 			var idleCB func(context.Context)
 			switch idlePattern {
 			case "":
+				// do nothing--no idle pattern to start
 			case "pulse":
-				idleCB = func(ctx context.Context) { keyboard.BrightnessPulse(ctx, pulseDelay) }
+				idleCB = func(ctx context.Context) {
+					log.Info().Str("pattern", idlePattern).Msg(startMsg)
+					keyboard.BrightnessPulse(ctx, pulseDelay)
+				}
 			case "rainbow":
-				idleCB = func(ctx context.Context) { keyboard.InfiniteRainbow(ctx, rainbowDelay) }
+				idleCB = func(ctx context.Context) {
+					log.Info().Str("pattern", idlePattern).Msg(startMsg)
+					keyboard.InfiniteRainbow(ctx, rainbowDelay)
+				}
 			case "random":
-				idleCB = func(ctx context.Context) { keyboard.InfiniteRandom(ctx, randomDelay) }
+				idleCB = func(ctx context.Context) {
+					log.Info().Str("pattern", idlePattern).Msg(startMsg)
+					keyboard.InfiniteRandom(ctx, randomDelay)
+				}
 			case "cpu":
-				idleCB = func(ctx context.Context) { keyboard.MonitorCPU(ctx, cpuDelay) }
+				idleCB = func(ctx context.Context) {
+					log.Info().Str("pattern", idlePattern).Msg(startMsg)
+					keyboard.MonitorCPU(ctx, cpuDelay)
+				}
 			case "desktop":
-				idleCB = func(ctx context.Context) { keyboard.MatchDesktopBackground(ctx) }
+				idleCB = func(ctx context.Context) {
+					log.Info().Str("pattern", idlePattern).Msg(startMsg)
+					keyboard.MatchDesktopBackground(ctx)
+				}
 			default:
 				return fail(13, "unknown pattern: %s", idlePattern)
 			}

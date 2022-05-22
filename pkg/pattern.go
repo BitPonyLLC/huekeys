@@ -226,7 +226,7 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 	}
 
 	go setTypingColor(ctx, delay, &keyPressCount, idleCB)
-	go processTypingEvents(f, eventpath, &keyPressCount)
+	go processTypingEvents(f, &keyPressCount)
 
 	<-ctx.Done()
 	stopRequested = true
@@ -263,7 +263,10 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 		}
 
 		if i > 0 {
-			idleAt = nil
+			if idleAt != nil {
+				idleAt = nil
+				log.Debug().Msg("no longer idle")
+			}
 			if cancelFunc != nil {
 				cancelFunc()
 				cancelFunc = nil
@@ -279,11 +282,13 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 		}
 
 		if cancelFunc != nil {
+			// don't start another background monitor!
 			continue
 		}
 
 		diff := time.Since(*idleAt)
 		if diff > 30*time.Second {
+			log.Debug().Msg("idle")
 			var cancelCtx context.Context
 			cancelCtx, cancelFunc = context.WithCancel(ctx)
 			go func() { idleCB(cancelCtx) }()
@@ -295,13 +300,13 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 	}
 }
 
-func processTypingEvents(eventF io.Reader, eventpath string, keyPressCount *int32) {
+func processTypingEvents(eventF io.Reader, keyPressCount *int32) {
 	// https://janczer.github.io/work-with-dev-input/
 	buf := make([]byte, 24)
 	for !stopRequested {
 		_, err := eventF.Read(buf)
 		if err != nil {
-			log.Error().Err(err).Str("path", eventpath).Msg("can't read input events device")
+			log.Error().Err(err).Msg("can't read input events device")
 			return
 		}
 
