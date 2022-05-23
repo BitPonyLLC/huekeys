@@ -94,14 +94,12 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 		}
 
 		if i > 0 {
-			if idleAt != nil {
-				idleAt = nil
-				p.Log.Debug().Msg("no longer idle")
-			}
+			idleAt = nil
 
 			if cancelFunc != nil {
 				cancelFunc()
 				cancelFunc = nil
+				p.Log.Debug().Msg("no longer idle")
 			}
 
 			atomic.AddInt32(keyPressCount, -1)

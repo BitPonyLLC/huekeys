@@ -8,7 +8,8 @@ Huekeys is a fun application that makes it easy to adjust your System76 keyboard
 * Pulse the keyboard brightness up and down.
 * Loop through all the colors of the rainbow.
 * Constantly change the color to a random selection.
-* Change the color according to typing speed (cold to hot) and optionally switch to another pattern when the typing is idle!
+* Change the color according to typing speed (cold to hot)
+    * Optionally switch to another pattern while typing has stopped for a while!
 
 ### Installation
 
