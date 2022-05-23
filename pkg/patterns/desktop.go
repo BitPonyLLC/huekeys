@@ -20,7 +20,7 @@ type DesktopPattern struct {
 }
 
 func NewDesktopPattern() *DesktopPattern {
-	return &DesktopPattern{}
+	return &DesktopPattern{BasePattern: BasePattern{Name: "desktop"}}
 }
 
 var _ Pattern = (*DesktopPattern)(nil) // ensures we conform to the Pattern interface

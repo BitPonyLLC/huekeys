@@ -1,4 +1,7 @@
 huekeys
-pkg/keyboard/colornames.csv.gz
 .reflex_installed
+
+buildinfo/build_time.txt
 buildinfo/version.txt
+
+pkg/keyboard/colornames.csv.gz

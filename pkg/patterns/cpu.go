@@ -21,7 +21,10 @@ const DefaultCPUDelay = 1 * time.Second
 var _ Pattern = (*CPUPattern)(nil) // ensures we conform to the Pattern interface
 
 func NewCPUPattern() *CPUPattern {
-	return &CPUPattern{BasePattern: BasePattern{Delay: DefaultCPUDelay}}
+	return &CPUPattern{BasePattern: BasePattern{
+		Name:  "cpu",
+		Delay: DefaultCPUDelay,
+	}}
 }
 
 func (p *CPUPattern) Run() error {

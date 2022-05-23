@@ -27,14 +27,14 @@ func init() {
 	runCmd.PersistentFlags().StringVar(&pidpath, "pidpath", pidpath, "pathname of the pidfile")
 	runCmd.PersistentFlags().IntVar(&priority, "nice", 10, "the priority level of the process")
 
-	addPatternCmd("pulse", "pulse the keyboard brightness up and down", patterns.NewPulsePattern())
-	addPatternCmd("rainbow", "loop through all the colors of the rainbow", patterns.NewRainbowPattern())
-	addPatternCmd("random", "constantly change the color to a random selection", patterns.NewRandomPattern())
-	addPatternCmd("cpu", "change the color according to CPU utilization (cold to hot)", patterns.NewCPUPattern())
-	addPatternCmd("desktop", "monitor the desktop picture and change the keyboard color to match", patterns.NewDesktopPattern())
+	addPatternCmd("pulse the keyboard brightness up and down", patterns.NewPulsePattern())
+	addPatternCmd("loop through all the colors of the rainbow", patterns.NewRainbowPattern())
+	addPatternCmd("constantly change the color to a random selection", patterns.NewRandomPattern())
+	addPatternCmd("change the color according to CPU utilization (cold to hot)", patterns.NewCPUPattern())
+	addPatternCmd("monitor the desktop picture and change the keyboard color to match", patterns.NewDesktopPattern())
 
 	typingPattern := patterns.NewTypingPattern()
-	typingPatternCmd := addPatternCmd("typing", "change the color according to typing speed (cold to hot)", typingPattern)
+	typingPatternCmd := addPatternCmd("change the color according to typing speed (cold to hot)", typingPattern)
 	typingPatternCmd.Flags().StringVar(&typingPattern.InputEventID, "input-event-id", typingPattern.InputEventID,
 		"input event ID to monitor")
 
@@ -47,10 +47,10 @@ func init() {
 	}
 }
 
-func addPatternCmd(use, short string, pattern patterns.Pattern) *cobra.Command {
+func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 	basePattern := pattern.GetBase()
 	cmd := &cobra.Command{
-		Use:   use,
+		Use:   pattern.GetBase().Name,
 		Short: short,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			err := checkAndSetPidPath(pidpath)

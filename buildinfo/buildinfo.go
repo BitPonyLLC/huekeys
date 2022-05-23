@@ -9,6 +9,9 @@ import (
 const Name = "huekeys"
 const Description = "Control the keyboard backlight on System76 laptops"
 
+//go:generate sh -c "date -u +%Y-%m-%dT%H:%M:%SZ | tr -d '\n' > build_time.txt"
+
+//go:embed build_time.txt
 var BuildTime string
 
 var CommitHash string
@@ -24,11 +27,9 @@ var All string
 func init() {
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
-			switch setting.Key {
-			case "vcs.revision":
+			if setting.Key == "vcs.revision" {
 				CommitHash = setting.Value[0:7] // use the "short" hash
-			case "vcs.time":
-				BuildTime = setting.Value
+				break
 			}
 		}
 	}

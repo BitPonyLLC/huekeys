@@ -15,7 +15,10 @@ const DefaultRainbowDelay = 1 * time.Nanosecond
 var _ Pattern = (*RainbowPattern)(nil) // ensures we conform to the Pattern interface
 
 func NewRainbowPattern() *RainbowPattern {
-	return &RainbowPattern{BasePattern: BasePattern{Delay: DefaultRainbowDelay}}
+	return &RainbowPattern{BasePattern: BasePattern{
+		Name:  "rainbow",
+		Delay: DefaultRainbowDelay,
+	}}
 }
 
 func (p *RainbowPattern) Run() error {

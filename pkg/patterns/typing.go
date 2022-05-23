@@ -28,7 +28,10 @@ const DefaultTypingDelay = 300 * time.Millisecond
 var _ Pattern = (*TypingPattern)(nil) // ensures we conform to the Pattern interface
 
 func NewTypingPattern() *TypingPattern {
-	return &TypingPattern{BasePattern: BasePattern{Delay: DefaultTypingDelay}}
+	return &TypingPattern{BasePattern: BasePattern{
+		Name:  "typing",
+		Delay: DefaultTypingDelay,
+	}}
 }
 
 func (p *TypingPattern) Run() error {

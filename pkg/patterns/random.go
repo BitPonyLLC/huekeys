@@ -15,7 +15,10 @@ const DefaultRandomDelay = 1 * time.Second
 var _ Pattern = (*RandomPattern)(nil) // ensures we conform to the Pattern interface
 
 func NewRandomPattern() *RandomPattern {
-	return &RandomPattern{BasePattern: BasePattern{Delay: DefaultRandomDelay}}
+	return &RandomPattern{BasePattern: BasePattern{
+		Name:  "random",
+		Delay: DefaultRandomDelay,
+	}}
 }
 
 func (p *RandomPattern) Run() error {

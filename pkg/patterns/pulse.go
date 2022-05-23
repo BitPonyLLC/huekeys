@@ -16,7 +16,10 @@ const DefaultPulseDelay = 25 * time.Millisecond
 var _ Pattern = (*PulsePattern)(nil) // ensures we conform to the Pattern interface
 
 func NewPulsePattern() *PulsePattern {
-	return &PulsePattern{BasePattern: BasePattern{Delay: DefaultPulseDelay}}
+	return &PulsePattern{BasePattern: BasePattern{
+		Name:  "pulse",
+		Delay: DefaultPulseDelay,
+	}}
 }
 
 func (p *PulsePattern) Run() error {
