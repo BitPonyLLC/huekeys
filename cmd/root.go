@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -16,11 +17,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var failureCode = 1
-var logLevel = "info"
-var logPath = ""
+var dumpConfig = false
 var logF *os.File
 
 var rootCmd = &cobra.Command{
@@ -35,7 +36,13 @@ var rootCmd = &cobra.Command{
 		}
 		return setupLogging(cmd)
 	},
-	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		if dumpConfig {
+			return showConfig()
+		}
+		return cmd.Help()
+	},
+	PersistentPostRun: func(_ *cobra.Command, _ []string) {
 		if logF != nil {
 			logF.Close()
 		}
@@ -44,10 +51,27 @@ var rootCmd = &cobra.Command{
 
 // Execute is the primary entrypoint for this CLI
 func Execute() {
+	viper.SetConfigName("." + buildinfo.Name)
+	viper.SetConfigType("toml")
+	viper.AddConfigPath("$HOME")
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			rootCmd.PrintErrln("Unable to read config file:", err)
+			os.Exit(1)
+		}
+	}
+
 	rootCmd.SetOut(os.Stdout) // default is stderr
 
-	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", logLevel, "set logging level: debug, info, warn, error")
-	rootCmd.PersistentFlags().StringVar(&logPath, "log-path", logPath, "set pathname for storing logs (default: syslog)")
+	rootCmd.PersistentFlags().BoolVar(&dumpConfig, "dump-config", dumpConfig, "dump configuration to stdout")
+
+	rootCmd.PersistentFlags().String("log-level", "info", "set logging level: debug, info, warn, error")
+	viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
+
+	rootCmd.PersistentFlags().String("log-dst", "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
+	viper.BindPFlag("log-dst", rootCmd.PersistentFlags().Lookup("log-dst"))
 
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
@@ -59,7 +83,7 @@ func Execute() {
 		cancelFunc()
 	}()
 
-	err := rootCmd.ExecuteContext(cancelCtx)
+	err = rootCmd.ExecuteContext(cancelCtx)
 	if err != nil {
 		log.Error().Err(err).Msg("command failed")
 		os.Exit(failureCode)
@@ -68,10 +92,41 @@ func Execute() {
 	os.Exit(0)
 }
 
+func showConfig() error {
+	tf, err := os.CreateTemp(os.TempDir(), buildinfo.Name)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		tf.Close()
+		os.Remove(tf.Name())
+	}()
+
+	err = viper.WriteConfigAs(tf.Name())
+	if err != nil {
+		return err
+	}
+
+	_, err = tf.Seek(0, io.SeekStart)
+	if err != nil {
+		return err
+	}
+
+	scanner := bufio.NewScanner(tf)
+	for scanner.Scan() {
+		fmt.Fprintln(os.Stdout, scanner.Text())
+	}
+
+	return nil
+}
+
 func setupLogging(cmd *cobra.Command) error {
 	var logWriter io.Writer
 
-	if logPath == "" {
+	logDst := viper.GetString("log-dst")
+	switch logDst {
+	case "syslog":
 		syslogger, err := syslog.New(syslog.LOG_INFO, buildinfo.Name)
 		if err != nil {
 			return fail(3, err)
@@ -82,16 +137,26 @@ func setupLogging(cmd *cobra.Command) error {
 			w.PartsExclude = []string{zerolog.TimestampFieldName}
 			w.Out = zerolog.SyslogLevelWriter(syslogger)
 		})
-	} else {
-		logF, err := os.Open(logPath)
+	case "stdout":
+		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
+			w.PartsExclude = []string{zerolog.TimestampFieldName}
+			w.Out = os.Stdout
+		})
+	case "stderr":
+		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
+			w.PartsExclude = []string{zerolog.TimestampFieldName}
+			w.Out = os.Stderr
+		})
+	default:
+		logF, err := os.Open(logDst)
 		if err != nil {
-			return fail(4, "unable to open %s: %w", logPath, err)
+			return fail(4, "unable to open %s: %w", logDst, err)
 		}
 
 		logWriter = logF
 	}
 
-	level, err := zerolog.ParseLevel(logLevel)
+	level, err := zerolog.ParseLevel(viper.GetString("log-level"))
 	if err != nil {
 		return fail(4, err)
 	}

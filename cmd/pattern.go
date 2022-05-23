@@ -11,10 +11,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
-
-var pidpath = "/tmp/" + buildinfo.Name + ".pid"
-var priority = 10
 
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -24,8 +22,11 @@ var runCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(runCmd)
 
-	runCmd.PersistentFlags().StringVar(&pidpath, "pidpath", pidpath, "pathname of the pidfile")
-	runCmd.PersistentFlags().IntVar(&priority, "nice", 10, "the priority level of the process")
+	runCmd.PersistentFlags().String("pidpath", os.TempDir()+buildinfo.Name+".pid", "pathname of the pidfile")
+	viper.BindPFlag("pidpath", runCmd.PersistentFlags().Lookup("pidpath"))
+
+	runCmd.PersistentFlags().Int("nice", 10, "the priority level of the process")
+	viper.BindPFlag("nice", runCmd.PersistentFlags().Lookup("nice"))
 
 	addPatternCmd("pulse the keyboard brightness up and down", patterns.NewPulsePattern())
 	addPatternCmd("loop through all the colors of the rainbow", patterns.NewRainbowPattern())
@@ -35,19 +36,20 @@ func init() {
 
 	typingPattern := patterns.NewTypingPattern()
 	typingPatternCmd := addPatternCmd("change the color according to typing speed (cold to hot)", typingPattern)
-	typingPatternCmd.Flags().StringVar(&typingPattern.InputEventID, "input-event-id", typingPattern.InputEventID,
-		"input event ID to monitor")
-
-	idlePatternName := ""
-	typingPatternCmd.Flags().StringVarP(&idlePatternName, "idle", "i", idlePatternName,
-		"name of pattern to run while keyboard is idle for more than 30 seconds")
+	typingPatternCmd.Flags().String("input-event-id", typingPattern.InputEventID, "input event ID to monitor")
+	viper.BindPFlag("typing.input-event-id", typingPatternCmd.Flags().Lookup("input-event-id"))
+	typingPatternCmd.Flags().StringP("idle", "i", "", "name of pattern to run while keyboard is idle for more than 30 seconds")
+	viper.BindPFlag("typing.idle", typingPatternCmd.Flags().Lookup("idle"))
 	typingPatternCmd.Args = func(cmd *cobra.Command, _ []string) (err error) {
-		typingPattern.IdlePattern, err = getIdlePattern(cmd, idlePatternName)
+		typingPattern.InputEventID = viper.GetString("typing.input-event-id")
+		typingPattern.IdlePattern, err = getIdlePattern(cmd, viper.GetString("typing.idle"))
 		return
 	}
 }
 
 func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
+	pidpath := viper.GetString("pidpath")
+	priority := viper.GetInt("nice")
 	basePattern := pattern.GetBase()
 	cmd := &cobra.Command{
 		Use:   pattern.GetBase().Name,
@@ -68,10 +70,10 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 
 			basePattern.Ctx = cmd.Context()
 			basePattern.Log = &plog
-
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")
 			return pattern.Run()
 		},
 		PostRun: func(_ *cobra.Command, _ []string) {
@@ -80,8 +82,9 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 	}
 
 	if basePattern.Delay != 0 {
-		cmd.Flags().DurationVarP(&basePattern.Delay, "delay", "d", basePattern.Delay,
+		cmd.Flags().DurationP("delay", "d", basePattern.Delay,
 			"the amount of time to wait between updates (units: ns, us, ms, s, m, h)")
+		viper.BindPFlag(basePattern.Name+".delay", cmd.Flags().Lookup("delay"))
 	}
 
 	runCmd.AddCommand(cmd)
@@ -91,7 +94,6 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 func getIdlePattern(cmd *cobra.Command, patternName string) (patterns.Pattern, error) {
 	switch patternName {
 	case "":
-		// no pattern specified, nothing to do
 		return nil, nil
 	case "pulse":
 		return patterns.NewPulsePattern(), nil
