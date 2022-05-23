@@ -14,9 +14,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var pidpath = os.TempDir() + buildinfo.Name + ".pid"
-var priority = 10
-
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "runs a backlight pattern",
@@ -25,10 +22,10 @@ var runCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(runCmd)
 
-	runCmd.PersistentFlags().String("pidpath", pidpath, "pathname of the pidfile")
+	runCmd.PersistentFlags().String("pidpath", os.TempDir()+buildinfo.Name+".pid", "pathname of the pidfile")
 	viper.BindPFlag("pidpath", runCmd.PersistentFlags().Lookup("pidpath"))
 
-	runCmd.PersistentFlags().IntVar(&priority, "nice", 10, "the priority level of the process")
+	runCmd.PersistentFlags().Int("nice", 10, "the priority level of the process")
 	viper.BindPFlag("nice", runCmd.PersistentFlags().Lookup("nice"))
 
 	addPatternCmd("pulse the keyboard brightness up and down", patterns.NewPulsePattern())
@@ -51,6 +48,8 @@ func init() {
 }
 
 func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
+	pidpath := viper.GetString("pidpath")
+	priority := viper.GetInt("nice")
 	basePattern := pattern.GetBase()
 	cmd := &cobra.Command{
 		Use:   pattern.GetBase().Name,
