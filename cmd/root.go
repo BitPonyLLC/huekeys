@@ -1,14 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/syslog"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/bambash/sys76-kb/buildinfo"
-	"github.com/bambash/sys76-kb/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/buildinfo"
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -46,7 +49,17 @@ func Execute() {
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", logLevel, "set logging level: debug, info, warn, error")
 	rootCmd.PersistentFlags().StringVar(&logPath, "log-path", logPath, "set pathname for storing logs (default: syslog)")
 
-	err := rootCmd.Execute()
+	cancelCtx, cancelFunc := context.WithCancel(context.Background())
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-stop
+		log.Info().Str("signal", sig.String()).Msg("stopping")
+		cancelFunc()
+	}()
+
+	err := rootCmd.ExecuteContext(cancelCtx)
 	if err != nil {
 		log.Error().Err(err).Msg("command failed")
 		os.Exit(failureCode)
@@ -59,7 +72,7 @@ func setupLogging(cmd *cobra.Command) error {
 	var logWriter io.Writer
 
 	if logPath == "" {
-		syslogger, err := syslog.New(syslog.LOG_INFO, "sys76-kb")
+		syslogger, err := syslog.New(syslog.LOG_INFO, buildinfo.Name)
 		if err != nil {
 			return fail(3, err)
 		}

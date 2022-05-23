@@ -1,14 +1,24 @@
 package patterns
 
 import (
-	"context"
 	"time"
 
-	"github.com/bambash/sys76-kb/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
-// InfiniteRainbow generates... an infinite rainbow
-func InfiniteRainbow(ctx context.Context, delay time.Duration) error {
+type RainbowPattern struct {
+	BasePattern
+}
+
+const DefaultRainbowDelay = 1 * time.Nanosecond
+
+var _ Pattern = (*RainbowPattern)(nil) // ensures we conform to the Pattern interface
+
+func NewRainbowPattern() *RainbowPattern {
+	return &RainbowPattern{BasePattern: BasePattern{Delay: DefaultRainbowDelay}}
+}
+
+func (p *RainbowPattern) Run() error {
 	var currentColor string
 	var currentColorOffset int
 
@@ -68,10 +78,11 @@ func InfiniteRainbow(ctx context.Context, delay time.Duration) error {
 				return err
 			}
 
-			if sleep(ctx, delay) {
+			if p.cancelableSleep() {
 				return nil
 			}
 		}
+
 		currentColorOffset = 0 // only used on first pass
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"runtime/debug"
 )
 
-const Name = "sys76-kb"
+const Name = "huekeys"
 const Description = "Control the keyboard backlight on System76 laptops"
 
 var BuildTime string

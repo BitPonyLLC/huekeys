@@ -1,21 +1,31 @@
 package patterns
 
 import (
-	"context"
 	"time"
 
-	"github.com/bambash/sys76-kb/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
-// InfinitRandom sets the keyboard colors to random values forever
-func InfiniteRandom(ctx context.Context, delay time.Duration) error {
+type RandomPattern struct {
+	BasePattern
+}
+
+const DefaultRandomDelay = 1 * time.Second
+
+var _ Pattern = (*RandomPattern)(nil) // ensures we conform to the Pattern interface
+
+func NewRandomPattern() *RandomPattern {
+	return &RandomPattern{BasePattern: BasePattern{Delay: DefaultRandomDelay}}
+}
+
+func (p *RandomPattern) Run() error {
 	for {
 		err := keyboard.ColorFileHandler(keyboard.RandomColor)
 		if err != nil {
 			return err
 		}
 
-		if sleep(ctx, delay) {
+		if p.cancelableSleep() {
 			return nil
 		}
 	}

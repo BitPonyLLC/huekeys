@@ -2,7 +2,6 @@ package patterns
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"math"
 	"os"
@@ -10,18 +9,29 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bambash/sys76-kb/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
-// MonitorCPU sets the keyboard colors according to CPU utilization
-func MonitorCPU(ctx context.Context, delay time.Duration) error {
+type CPUPattern struct {
+	BasePattern
+}
+
+const DefaultCPUDelay = 1 * time.Second
+
+var _ Pattern = (*CPUPattern)(nil) // ensures we conform to the Pattern interface
+
+func NewCPUPattern() *CPUPattern {
+	return &CPUPattern{BasePattern: BasePattern{Delay: DefaultCPUDelay}}
+}
+
+func (p *CPUPattern) Run() error {
 	for {
 		previous, err := getCPUStats()
 		if err != nil {
 			return err
 		}
 
-		if sleep(ctx, delay) {
+		if p.cancelableSleep() {
 			return nil
 		}
 

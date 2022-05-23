@@ -13,21 +13,34 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bambash/sys76-kb/pkg/keyboard"
-	"github.com/rs/zerolog/log"
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
-// MonitorTyping sets the keyboard colors acccording to rate of typing
-func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string, idleCB func(context.Context)) error {
-	if inputEventID == "" {
+type TypingPattern struct {
+	BasePattern
+
+	InputEventID string
+	IdlePattern  Pattern
+}
+
+const DefaultTypingDelay = 300 * time.Millisecond
+
+var _ Pattern = (*TypingPattern)(nil) // ensures we conform to the Pattern interface
+
+func NewTypingPattern() *TypingPattern {
+	return &TypingPattern{BasePattern: BasePattern{Delay: DefaultTypingDelay}}
+}
+
+func (p *TypingPattern) Run() error {
+	if p.InputEventID == "" {
 		var err error
-		inputEventID, err = getInputEventID()
+		p.InputEventID, err = getInputEventID()
 		if err != nil {
 			return err
 		}
 	}
 
-	eventpath := "/dev/input/" + inputEventID
+	eventpath := "/dev/input/" + p.InputEventID
 	f, err := os.Open(eventpath)
 	if err != nil {
 		return fmt.Errorf("can't open input events device (%s): %w", eventpath, err)
@@ -39,16 +52,16 @@ func MonitorTyping(ctx context.Context, delay time.Duration, inputEventID string
 		return err
 	}
 
-	go setTypingColor(ctx, delay, &keyPressCount, idleCB)
-	go processTypingEvents(f, &keyPressCount)
+	go p.setColor(&keyPressCount)
+	go p.processTypingEvents(f, &keyPressCount)
 
-	<-ctx.Done()
-	stopRequested = true
+	<-p.Ctx.Done()
+	p.stopRequested = true
 
 	return nil
 }
 
-func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int32, idleCB func(context.Context)) {
+func (p *TypingPattern) setColor(keyPressCount *int32) {
 	var idleAt *time.Time
 	var cancelFunc context.CancelFunc
 
@@ -56,7 +69,7 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 	colorsLen := len(coldHotColors)
 
 	for {
-		if sleep(ctx, delay) {
+		if p.cancelableSleep() {
 			break
 		}
 
@@ -70,21 +83,24 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 			color := coldHotColors[i]
 			err := keyboard.ColorFileHandler(color)
 			if err != nil {
-				log.Error().Err(err).Msg("can't set typing color")
+				p.Log.Error().Err(err).Msg("can't set typing color")
 				break
 			}
+
 			lastIndex = i
 		}
 
 		if i > 0 {
 			if idleAt != nil {
 				idleAt = nil
-				log.Debug().Msg("no longer idle")
+				p.Log.Debug().Msg("no longer idle")
 			}
+
 			if cancelFunc != nil {
 				cancelFunc()
 				cancelFunc = nil
 			}
+
 			atomic.AddInt32(keyPressCount, -1)
 			continue
 		}
@@ -102,10 +118,17 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 
 		diff := time.Since(*idleAt)
 		if diff > 30*time.Second {
-			log.Debug().Msg("idle")
+			p.Log.Debug().Msg("idle")
 			var cancelCtx context.Context
-			cancelCtx, cancelFunc = context.WithCancel(ctx)
-			go func() { idleCB(cancelCtx) }()
+			cancelCtx, cancelFunc = context.WithCancel(p.Ctx)
+			go func() {
+				bp := p.IdlePattern.GetBase()
+				ilog := p.Log.With().Str("idle", bp.Name).Logger()
+				ilog.Info().Msg("starting")
+				bp.Ctx = cancelCtx
+				bp.Log = &ilog
+				p.IdlePattern.Run()
+			}()
 		}
 	}
 
@@ -114,13 +137,13 @@ func setTypingColor(ctx context.Context, delay time.Duration, keyPressCount *int
 	}
 }
 
-func processTypingEvents(eventF io.Reader, keyPressCount *int32) {
+func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int32) {
 	// https://janczer.github.io/work-with-dev-input/
 	buf := make([]byte, 24)
-	for !stopRequested {
+	for !p.stopRequested {
 		_, err := eventF.Read(buf)
 		if err != nil {
-			log.Error().Err(err).Msg("can't read input events device")
+			p.Log.Error().Err(err).Msg("can't read input events device")
 			return
 		}
 

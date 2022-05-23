@@ -3,7 +3,6 @@ package patterns
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -11,15 +10,26 @@ import (
 	"regexp"
 	"unicode"
 
+	"github.com/BitPonyLLC/huekeys/internal/image_matcher"
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
+
+type DesktopPattern struct {
+	BasePattern
+}
+
+func NewDesktopPattern() *DesktopPattern {
+	return &DesktopPattern{}
+}
+
+var _ Pattern = (*DesktopPattern)(nil) // ensures we conform to the Pattern interface
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
 var backgroundProcess *os.Process
 
-func MatchDesktopBackground(ctx context.Context) error {
-	colorScheme, err := getDesktopSetting("interface", "color-scheme")
+func (p *DesktopPattern) Run() error {
+	colorScheme, err := p.getDesktopSetting("interface", "color-scheme")
 	if err != nil {
 		return err
 	}
@@ -29,7 +39,7 @@ func MatchDesktopBackground(ctx context.Context) error {
 		pictureKey += "-dark"
 	}
 
-	pictureURIStr, err := getDesktopSetting("background", pictureKey)
+	pictureURIStr, err := p.getDesktopSetting("background", pictureKey)
 	if err != nil {
 		return err
 	}
@@ -39,9 +49,9 @@ func MatchDesktopBackground(ctx context.Context) error {
 		return fmt.Errorf("can't parse picture URI (%s): %w", pictureURIStr, err)
 	}
 
-	setColorFrom(pictureURL.Path)
+	p.setColorFrom(pictureURL.Path)
 
-	cmd := newDesktopSettingCmd("monitor", "background", pictureKey)
+	cmd := p.newDesktopSettingCmd("monitor", "background", pictureKey)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("can't get stdout of desktop background monitor: %w", err)
@@ -57,10 +67,10 @@ func MatchDesktopBackground(ctx context.Context) error {
 	go func() {
 		state, err := backgroundProcess.Wait()
 		var ev *zerolog.Event
-		if stopRequested {
-			ev = log.Debug()
+		if p.stopRequested {
+			ev = p.Log.Debug()
 		} else {
-			ev = log.Error()
+			ev = p.Log.Error()
 		}
 		ev.Err(err).Interface("state", state).Msg("desktop background monitor has stopped")
 	}()
@@ -71,20 +81,20 @@ func MatchDesktopBackground(ctx context.Context) error {
 			line := scanner.Text()
 			m := pictureURIMonitorRE.FindStringSubmatch(line)
 			if m == nil || len(m) < 2 || m[1] == "" {
-				log.Warn().Str("line", line).Msg("ignoring unknown content from desktop background monitor")
+				p.Log.Warn().Str("line", line).Msg("ignoring unknown content from desktop background monitor")
 				continue
 			}
-			setColorFrom(m[1])
+			p.setColorFrom(m[1])
 		}
 	}()
 
-	<-ctx.Done()
-	stopDesktopBackgroundMonitor()
+	<-p.Ctx.Done()
+	p.stopDesktopBackgroundMonitor()
 
 	return nil
 }
 
-func newDesktopSettingCmd(action, group, key string) *exec.Cmd {
+func (p *DesktopPattern) newDesktopSettingCmd(action, group, key string) *exec.Cmd {
 	cmdName := "gsettings"
 	args := []string{}
 
@@ -96,7 +106,7 @@ func newDesktopSettingCmd(action, group, key string) *exec.Cmd {
 			args = []string{"-Eu", sudoUser, "gsettings"}
 			if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
 				// we need access to the user's gnome session in order to look up correct setting values
-				log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
+				p.Log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
 			}
 		}
 	}
@@ -107,11 +117,11 @@ func newDesktopSettingCmd(action, group, key string) *exec.Cmd {
 	return cmd
 }
 
-func getDesktopSetting(group, key string) (string, error) {
+func (p *DesktopPattern) getDesktopSetting(group, key string) (string, error) {
 	// TODO: consider using D-Bus directly instead of gsettings...
-	val, err := newDesktopSettingCmd("get", group, key).Output()
+	val, err := p.newDesktopSettingCmd("get", group, key).Output()
 	if err != nil {
-		log.Error().Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
+		p.Log.Error().Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
 		return "", err
 	}
 
@@ -119,15 +129,30 @@ func getDesktopSetting(group, key string) (string, error) {
 	return string(val), nil
 }
 
-func stopDesktopBackgroundMonitor() {
+func (p *DesktopPattern) setColorFrom(u string) error {
+	pictureURL, err := url.Parse(u)
+	if err != nil {
+		return fmt.Errorf("can't parse picture URI (%s): %w", pictureURL, err)
+	}
+
+	color, err := image_matcher.GetDominantColorOf(pictureURL.Path)
+	if err != nil {
+		return fmt.Errorf("can't determine dominant color: %w", err)
+	}
+
+	p.Log.Info().Str("color", color).Str("path", pictureURL.Path).Msg("setting")
+
+	return keyboard.ColorFileHandler(color)
+}
+func (p *DesktopPattern) stopDesktopBackgroundMonitor() {
 	if backgroundProcess != nil {
-		p := backgroundProcess
-		log.Debug().Int("pid", p.Pid).Msg("stopping desktop background monitor")
+		proc := backgroundProcess
+		p.Log.Debug().Int("pid", proc.Pid).Msg("stopping desktop background monitor")
 		backgroundProcess = nil
-		stopRequested = true
-		err := p.Kill()
+		p.stopRequested = true
+		err := proc.Kill()
 		if err != nil {
-			log.Error().Err(err).Int("pid", p.Pid).Msg("can't kill desktop background monitor")
+			p.Log.Error().Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
 		}
 	}
 }

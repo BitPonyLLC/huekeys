@@ -21,4 +21,4 @@ $(CNAMESFN):
 	touch $@
 
 clean:
-	$(RM) .reflex_installed sys76-kb buildinfo/version.txt $(CNAMESFN)
+	$(RM) .reflex_installed huekeys buildinfo/version.txt $(CNAMESFN)

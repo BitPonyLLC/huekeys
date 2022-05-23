@@ -36,4 +36,4 @@ $ sudo sys76-kb run -p pulse &
 
 ![alt text][loop]
 
-[loop]: https://github.com/bambash/sys76-kb/blob/master/kb.gif "loop"
+[loop]: https://github.com/BitPonyLLC/huekeys/blob/master/kb.gif "loop"

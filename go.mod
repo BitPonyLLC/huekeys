@@ -1,4 +1,4 @@
-module github.com/bambash/sys76-kb
+module github.com/BitPonyLLC/huekeys
 
 go 1.18
 

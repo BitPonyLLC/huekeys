@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/bambash/sys76-kb/internal/image_matcher"
-	"github.com/bambash/sys76-kb/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/internal/image_matcher"
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 
 	"github.com/spf13/cobra"
 )

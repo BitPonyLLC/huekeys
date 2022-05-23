@@ -1,15 +1,25 @@
 package patterns
 
 import (
-	"context"
 	"strconv"
 	"time"
 
-	"github.com/bambash/sys76-kb/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
-// BrightnessPulse continuously dials up and down brightness
-func BrightnessPulse(ctx context.Context, delay time.Duration) error {
+type PulsePattern struct {
+	BasePattern
+}
+
+const DefaultPulseDelay = 25 * time.Millisecond
+
+var _ Pattern = (*PulsePattern)(nil) // ensures we conform to the Pattern interface
+
+func NewPulsePattern() *PulsePattern {
+	return &PulsePattern{BasePattern: BasePattern{Delay: DefaultPulseDelay}}
+}
+
+func (p *PulsePattern) Run() error {
 	for {
 		for i := 255; i >= 0; i-- {
 			s := strconv.Itoa(i)
@@ -19,7 +29,7 @@ func BrightnessPulse(ctx context.Context, delay time.Duration) error {
 				return err
 			}
 
-			if sleep(ctx, delay) {
+			if p.cancelableSleep() {
 				return nil
 			}
 		}
@@ -31,7 +41,7 @@ func BrightnessPulse(ctx context.Context, delay time.Duration) error {
 				return err
 			}
 
-			if sleep(ctx, delay) {
+			if p.cancelableSleep() {
 				return nil
 			}
 		}
