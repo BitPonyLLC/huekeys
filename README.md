@@ -25,22 +25,22 @@ NOTE: this only works until reboot since these devices will be recreated w/ the 
 
 ```
 ## help menu
-$ sudo huekeys
+$ huekeys
 
 ## set color to red
-$ sudo huekeys set -c red
+$ huekeys set -c red
 
 ## set brightness
-$ sudo huekeys set -b 255
+$ huekeys set -b 255
 
 ## set color and brightness
-$ sudo huekeys set -c pink -b 127
+$ huekeys set -c pink -b 127
 
 ## run a infinite rainbow in the background
-$ sudo huekeys run rainbow &
+$ huekeys run rainbow &
 
 ## run a infinite pulse in the background
-$ sudo huekeys run pulse &
+$ huekeys run pulse &
 ```
 
 ![alt text][loop]
