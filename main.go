@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/bambash/sys76-kb/cmd"
+	"github.com/BitPonyLLC/huekeys/cmd"
 )
 
 func main() {
