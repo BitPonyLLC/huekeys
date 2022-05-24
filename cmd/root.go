@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
@@ -127,7 +128,9 @@ func setupLogging(cmd *cobra.Command) error {
 
 	var logWriter io.Writer
 
+	withTime := true
 	logDst := viper.GetString("log-dst")
+
 	switch logDst {
 	case "syslog":
 		syslogger, err := syslog.New(syslog.LOG_INFO, buildinfo.Name)
@@ -135,6 +138,7 @@ func setupLogging(cmd *cobra.Command) error {
 			return fail(3, err)
 		}
 
+		withTime = false
 		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
 			w.NoColor = true
 			w.PartsExclude = []string{zerolog.TimestampFieldName}
@@ -142,16 +146,16 @@ func setupLogging(cmd *cobra.Command) error {
 		})
 	case "stdout":
 		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
-			w.PartsExclude = []string{zerolog.TimestampFieldName}
+			w.TimeFormat = time.Kitchen
 			w.Out = os.Stdout
 		})
 	case "stderr":
 		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
-			w.PartsExclude = []string{zerolog.TimestampFieldName}
+			w.TimeFormat = time.Kitchen
 			w.Out = os.Stderr
 		})
 	default:
-		logF, err := os.Open(logDst)
+		logF, err := os.Create(logDst)
 		if err != nil {
 			return fail(4, "unable to open %s: %w", logDst, err)
 		}
@@ -165,7 +169,12 @@ func setupLogging(cmd *cobra.Command) error {
 	}
 
 	zerolog.SetGlobalLevel(level)
-	log.Logger = zerolog.New(logWriter)
+
+	if withTime {
+		log.Logger = zerolog.New(logWriter).With().Timestamp().Logger()
+	} else {
+		log.Logger = zerolog.New(logWriter)
+	}
 
 	return nil
 }
