@@ -63,16 +63,19 @@ func (p *DesktopPattern) Run() error {
 	}
 
 	backgroundProcess = cmd.Process
+	p.Log.Debug().Int("pid", backgroundProcess.Pid).Msg("started desktop background monitor")
 
 	go func() {
-		state, err := backgroundProcess.Wait()
+		proc := backgroundProcess
+		state, err := proc.Wait()
 		var ev *zerolog.Event
 		if p.stopRequested {
 			ev = p.Log.Debug()
 		} else {
 			ev = p.Log.Error()
 		}
-		ev.Err(err).Interface("state", state).Msg("desktop background monitor has stopped")
+		ev.Err(err).Int("pid", proc.Pid).Str("state", state.String()).
+			Msg("desktop background monitor has stopped")
 	}()
 
 	go func() {

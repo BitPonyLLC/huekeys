@@ -129,6 +129,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 				bp.Ctx = cancelCtx
 				bp.Log = &ilog
 				p.IdlePattern.Run()
+				ilog.Info().Msg("stopping")
 			}()
 		}
 	}
