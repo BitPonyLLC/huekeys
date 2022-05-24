@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type Pattern interface {
@@ -33,5 +35,13 @@ func (p *BasePattern) cancelableSleep() bool {
 		return true
 	case <-wake.C:
 		return false
+	}
+}
+
+func logRecover() {
+	if r := recover(); r != nil {
+		// wrap these because most (all?) panics and unhandled errors do not carry a stacktrace
+		err := errors.Wrap(r.(error), "recovered error")
+		log.Error().Stack().Err(err).Msg("")
 	}
 }

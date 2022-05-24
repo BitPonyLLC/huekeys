@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"syscall"
 	"unicode"
 
 	"github.com/BitPonyLLC/huekeys/internal/image_matcher"
@@ -52,6 +53,7 @@ func (p *DesktopPattern) Run() error {
 	p.setColorFrom(pictureURL.Path)
 
 	cmd := p.newDesktopSettingCmd("monitor", "background", pictureKey)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("can't get stdout of desktop background monitor: %w", err)
@@ -66,6 +68,7 @@ func (p *DesktopPattern) Run() error {
 	p.Log.Debug().Int("pid", backgroundProcess.Pid).Msg("started desktop background monitor")
 
 	go func() {
+		defer logRecover()
 		proc := backgroundProcess
 		state, err := proc.Wait()
 		var ev *zerolog.Event
@@ -79,6 +82,7 @@ func (p *DesktopPattern) Run() error {
 	}()
 
 	go func() {
+		defer logRecover()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -150,10 +154,10 @@ func (p *DesktopPattern) setColorFrom(u string) error {
 func (p *DesktopPattern) stopDesktopBackgroundMonitor() {
 	if backgroundProcess != nil {
 		proc := backgroundProcess
-		p.Log.Debug().Int("pid", proc.Pid).Msg("stopping desktop background monitor")
 		backgroundProcess = nil
+		p.Log.Debug().Int("pid", proc.Pid).Msg("stopping desktop background monitor")
 		p.stopRequested = true
-		err := proc.Kill()
+		err := syscall.Kill(-proc.Pid, syscall.SIGTERM)
 		if err != nil {
 			p.Log.Error().Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
 		}

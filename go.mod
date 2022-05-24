@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/EdlinOrg/prominentcolor v1.0.0
+	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/viper v1.11.0

@@ -16,6 +16,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -122,6 +123,8 @@ func showConfig() error {
 }
 
 func setupLogging(cmd *cobra.Command) error {
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+
 	var logWriter io.Writer
 
 	logDst := viper.GetString("log-dst")
@@ -163,6 +166,7 @@ func setupLogging(cmd *cobra.Command) error {
 
 	zerolog.SetGlobalLevel(level)
 	log.Logger = zerolog.New(logWriter)
+
 	return nil
 }
 
