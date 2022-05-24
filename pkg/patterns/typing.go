@@ -21,17 +21,20 @@ type TypingPattern struct {
 
 	InputEventID string
 	IdlePattern  Pattern
+	IdlePeriod   time.Duration
 }
 
 const DefaultTypingDelay = 300 * time.Millisecond
+const DefaultIdlePeriod = 30 * time.Second
 
 var _ Pattern = (*TypingPattern)(nil) // ensures we conform to the Pattern interface
 
 func NewTypingPattern() *TypingPattern {
 	return &TypingPattern{BasePattern: BasePattern{
 		Name:  "typing",
-		Delay: DefaultTypingDelay,
-	}}
+		Delay: DefaultTypingDelay},
+		IdlePeriod: DefaultIdlePeriod,
+	}
 }
 
 func (p *TypingPattern) Run() error {
@@ -120,7 +123,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 		}
 
 		diff := time.Since(*idleAt)
-		if diff > 30*time.Second {
+		if diff > p.IdlePeriod {
 			p.Log.Debug().Msg("idle")
 			var cancelCtx context.Context
 			cancelCtx, cancelFunc = context.WithCancel(p.Ctx)

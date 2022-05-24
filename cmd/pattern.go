@@ -36,10 +36,16 @@ func init() {
 
 	typingPattern := patterns.NewTypingPattern()
 	typingPatternCmd := addPatternCmd("change the color according to typing speed (cold to hot)", typingPattern)
+
 	typingPatternCmd.Flags().String("input-event-id", typingPattern.InputEventID, "input event ID to monitor")
 	viper.BindPFlag("typing.input-event-id", typingPatternCmd.Flags().Lookup("input-event-id"))
-	typingPatternCmd.Flags().StringP("idle", "i", "", "name of pattern to run while keyboard is idle for more than 30 seconds")
+
+	typingPatternCmd.Flags().StringP("idle", "i", "", "name of pattern to run while keyboard is idle for more than the idle period")
 	viper.BindPFlag("typing.idle", typingPatternCmd.Flags().Lookup("idle"))
+
+	typingPatternCmd.Flags().DurationP("idle-period", "p", typingPattern.IdlePeriod, "amount of idle time to wait before starting the idle pattern")
+	viper.BindPFlag("typing.idle-period", typingPatternCmd.Flags().Lookup("idle-period"))
+
 	typingPatternCmd.Args = func(cmd *cobra.Command, _ []string) (err error) {
 		typingPattern.InputEventID = viper.GetString("typing.input-event-id")
 		typingPattern.IdlePattern, err = getIdlePattern(cmd, viper.GetString("typing.idle"))
