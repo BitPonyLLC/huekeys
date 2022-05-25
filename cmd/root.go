@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
@@ -123,6 +122,8 @@ func showConfig() error {
 	return nil
 }
 
+const minimalTimeFormat = "15:04:05.000"
+
 func setupLogging(cmd *cobra.Command) error {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
@@ -145,13 +146,15 @@ func setupLogging(cmd *cobra.Command) error {
 			w.Out = zerolog.SyslogLevelWriter(syslogger)
 		})
 	case "stdout":
+		zerolog.TimeFieldFormat = minimalTimeFormat
 		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
-			w.TimeFormat = time.Kitchen
+			w.TimeFormat = minimalTimeFormat
 			w.Out = os.Stdout
 		})
 	case "stderr":
+		zerolog.TimeFieldFormat = minimalTimeFormat
 		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
-			w.TimeFormat = time.Kitchen
+			w.TimeFormat = minimalTimeFormat
 			w.Out = os.Stderr
 		})
 	default:
