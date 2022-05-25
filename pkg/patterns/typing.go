@@ -137,7 +137,10 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 				defer util.LogRecover()
 				bp := p.IdlePattern.GetBase()
 				ilog := p.log.With().Str("idle", bp.Name).Logger()
-				p.IdlePattern.Run(cancelCtx, &ilog)
+				bp.ctx = cancelCtx
+				bp.log = &ilog
+				// using the private runner otherwise, we'll get canceled! ;)
+				bp.run()
 			}()
 		}
 	}
