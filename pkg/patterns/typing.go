@@ -105,12 +105,14 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 		}
 
 		if i > 0 {
-			idleAt = nil
-
-			if cancelFunc != nil {
-				cancelFunc()
-				cancelFunc = nil
-				p.log.Debug().Msg("no longer idle")
+			// wait for 2 keypresses to avoid halting the pattern for control-key sequences
+			if i > 1 {
+				idleAt = nil
+				if cancelFunc != nil {
+					cancelFunc()
+					cancelFunc = nil
+					p.log.Debug().Msg("no longer idle")
+				}
 			}
 
 			atomic.AddInt32(keyPressCount, -1)
