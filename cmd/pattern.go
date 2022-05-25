@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
+	"github.com/BitPonyLLC/huekeys/pkg/ipc"
 	"github.com/BitPonyLLC/huekeys/pkg/patterns"
 
 	"github.com/rs/zerolog/log"
@@ -42,6 +44,9 @@ func init() {
 	typingPatternCmd.Flags().String("input-event-id", typingPattern.InputEventID, "input event ID to monitor")
 	viper.BindPFlag("typing.input-event-id", typingPatternCmd.Flags().Lookup("input-event-id"))
 
+	typingPatternCmd.Flags().Bool("all-keys", typingPattern.CountAllKeys, "count any key pressed instead of only those that are considered \"printable\"")
+	viper.BindPFlag("typing.all-keys", typingPatternCmd.Flags().Lookup("all-keys"))
+
 	typingPatternCmd.Flags().StringP("idle", "i", "", "name of pattern to run while keyboard is idle for more than the idle period")
 	viper.BindPFlag("typing.idle", typingPatternCmd.Flags().Lookup("idle"))
 
@@ -50,6 +55,7 @@ func init() {
 
 	typingPatternCmd.Args = func(cmd *cobra.Command, _ []string) (err error) {
 		typingPattern.InputEventID = viper.GetString("typing.input-event-id")
+		typingPattern.CountAllKeys = viper.GetBool("typing.all-keys")
 		typingPattern.IdlePattern, err = getIdlePattern(cmd, viper.GetString("typing.idle"))
 		return
 	}
@@ -83,10 +89,10 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")
-			println("BARF waiting, doing nothing...")
-			<-cmd.Context().Done()
-			return nil
-			// return pattern.Run()
+			// println("BARF waiting, doing nothing...")
+			// <-cmd.Context().Done()
+			// return nil
+			return pattern.Run()
 		},
 		PostRun: func(_ *cobra.Command, _ []string) {
 			os.Remove(pidpath)
@@ -131,6 +137,11 @@ func checkAndSetPidPath(pidpath string) error {
 			return fmt.Errorf("unable to parse contents of %s: %w", pidpath, err)
 		}
 
+		if otherPid == os.Getpid() {
+			// just ourselves, probably running an IPC command
+			return nil
+		}
+
 		err = syscall.Kill(otherPid, 0)
 		if err == nil || err.(syscall.Errno) == syscall.EPERM {
 			// if EPERM, process is owned by another user, probably root
@@ -162,4 +173,15 @@ func beNice(priority int) error {
 		return fmt.Errorf("unable to set nice level %d: %w", priority, err)
 	}
 	return nil
+}
+
+func startIPCServer(ctx context.Context) error {
+	svr := ipc.IPCServer{
+		Ctx:  ctx,
+		Path: filepath.Join(os.TempDir(), buildinfo.Name+".sock"),
+		Cmd:  rootCmd,
+		Log:  &log.Logger,
+	}
+
+	return svr.Start()
 }

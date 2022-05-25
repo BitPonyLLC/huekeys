@@ -21,6 +21,7 @@ type TypingPattern struct {
 	BasePattern
 
 	InputEventID string
+	CountAllKeys bool
 	IdlePattern  Pattern
 	IdlePeriod   time.Duration
 }
@@ -158,19 +159,24 @@ func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int
 			return
 		}
 
+		// typ is the kind of event being reported
 		typ := binary.LittleEndian.Uint16(buf[16:18])
-		// code := binary.LittleEndian.Uint16(buf[18:20])
 
+		// value is the state of the event being reported (on/off, pressed/unpressed, etc.)
 		var value int32
 		binary.Read(bytes.NewReader(buf[20:]), binary.LittleEndian, &value)
 
 		// we only care when typ is EV_KEY and value indicates "pressed"
 		// https://github.com/torvalds/linux/blob/v5.17/include/uapi/linux/input-event-codes.h#L34-L51
 		if typ == 1 && value == 1 {
-			// sec := binary.LittleEndian.Uint64(buf[0:8])
-			// usec := binary.LittleEndian.Uint64(buf[8:16])
-			// ts := time.Unix(int64(sec), int64(usec)*1000)
-			atomic.AddInt32(keyPressCount, 1)
+			// in this context, code indicates what key was pressed
+			code := binary.LittleEndian.Uint16(buf[18:20])
+			if p.CountAllKeys || isPrintable(code) {
+				// sec := binary.LittleEndian.Uint64(buf[0:8])
+				// usec := binary.LittleEndian.Uint64(buf[8:16])
+				// ts := time.Unix(int64(sec), int64(usec)*1000)
+				atomic.AddInt32(keyPressCount, 1)
+			}
 		}
 	}
 }
@@ -206,4 +212,13 @@ func getInputEventID() (string, error) {
 	}
 
 	return "", fmt.Errorf("can't find a keyboard input device")
+}
+
+func isPrintable(code uint16) bool {
+	// https://github.com/torvalds/linux/blob/v5.17/include/uapi/linux/input-event-codes.h#L64
+	return (1 < code && code < 14) ||
+		(15 < code && code < 29) ||
+		(29 < code && code < 42) ||
+		(42 < code && code < 54) ||
+		(code == 57)
 }
