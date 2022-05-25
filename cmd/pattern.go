@@ -70,27 +70,17 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		Use:   pattern.GetBase().Name,
 		Short: short,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			err := checkAndSetPidPath(pidpath)
-			if err != nil {
+			if err := checkAndSetPidPath(pidpath); err != nil {
 				return fail(11, err)
 			}
-
-			err = beNice(priority)
-			if err != nil {
+			if err := beNice(priority); err != nil {
 				return fail(12, err)
 			}
-
-			plog := log.With().Str("cmd", cmd.Name()).Logger()
-			plog.Info().Msg("starting")
-
-			basePattern.Ctx = cmd.Context()
-			basePattern.Log = &plog
-
 			return startIPCServer(cmd.Context())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")
-			return pattern.Run()
+			return pattern.Run(cmd.Context(), &log.Logger)
 		},
 		PostRun: func(_ *cobra.Command, _ []string) {
 			os.Remove(pidpath)

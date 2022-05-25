@@ -72,7 +72,7 @@ func (p *DesktopPattern) run() error {
 	}
 
 	p.backgroundProcess = cmd.Process
-	p.Log.Debug().Int("pid", p.backgroundProcess.Pid).Msg("started desktop background monitor")
+	p.log.Debug().Int("pid", p.backgroundProcess.Pid).Msg("started desktop background monitor")
 
 	go func() {
 		defer util.LogRecover()
@@ -80,9 +80,9 @@ func (p *DesktopPattern) run() error {
 		state, err := proc.Wait()
 		var ev *zerolog.Event
 		if p.stopRequested {
-			ev = p.Log.Debug()
+			ev = p.log.Debug()
 		} else {
-			ev = p.Log.Error()
+			ev = p.log.Error()
 		}
 		ev.Err(err).Int("pid", proc.Pid).Str("state", state.String()).
 			Msg("desktop background monitor has stopped")
@@ -95,14 +95,14 @@ func (p *DesktopPattern) run() error {
 			line := scanner.Text()
 			m := pictureURIMonitorRE.FindStringSubmatch(line)
 			if m == nil || len(m) < 2 || m[1] == "" {
-				p.Log.Warn().Str("line", line).Msg("ignoring unknown content from desktop background monitor")
+				p.log.Warn().Str("line", line).Msg("ignoring unknown content from desktop background monitor")
 				continue
 			}
 			p.setColorFrom(m[1])
 		}
 	}()
 
-	<-p.Ctx.Done()
+	<-p.ctx.Done()
 	p.stopDesktopBackgroundMonitor()
 
 	return nil
@@ -120,7 +120,7 @@ func (p *DesktopPattern) newDesktopSettingCmd(action, group, key string) *exec.C
 			args = []string{"-Eu", sudoUser, "gsettings"}
 			if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
 				// we need access to the user's gnome session in order to look up correct setting values
-				p.Log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
+				p.log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
 			}
 		}
 	}
@@ -135,7 +135,7 @@ func (p *DesktopPattern) getDesktopSetting(group, key string) (string, error) {
 	// TODO: consider using D-Bus directly instead of gsettings...
 	val, err := p.newDesktopSettingCmd("get", group, key).Output()
 	if err != nil {
-		p.Log.Error().Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
+		p.log.Error().Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
 		return "", err
 	}
 
@@ -154,18 +154,18 @@ func (p *DesktopPattern) setColorFrom(u string) error {
 		return fmt.Errorf("can't determine dominant color: %w", err)
 	}
 
-	p.Log.Info().Str("color", color).Str("path", pictureURL.Path).Msg("setting")
+	p.log.Info().Str("color", color).Str("path", pictureURL.Path).Msg("setting")
 
 	return keyboard.ColorFileHandler(color)
 }
 func (p *DesktopPattern) stopDesktopBackgroundMonitor() {
 	if p.backgroundProcess != nil {
 		proc := p.backgroundProcess
-		p.Log.Debug().Int("pid", proc.Pid).Msg("stopping desktop background monitor")
+		p.log.Debug().Int("pid", proc.Pid).Msg("stopping desktop background monitor")
 		p.stopRequested = true
 		err := syscall.Kill(-proc.Pid, syscall.SIGTERM)
 		if err != nil {
-			p.Log.Error().Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
+			p.log.Error().Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
 		}
 	}
 }

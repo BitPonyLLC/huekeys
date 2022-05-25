@@ -67,7 +67,7 @@ func (p *TypingPattern) run() error {
 	go p.setColor(&keyPressCount)
 	go p.processTypingEvents(f, &keyPressCount)
 
-	<-p.Ctx.Done()
+	<-p.ctx.Done()
 	p.stopRequested = true
 
 	return nil
@@ -97,7 +97,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			color := coldHotColors[i]
 			err := keyboard.ColorFileHandler(color)
 			if err != nil {
-				p.Log.Error().Err(err).Msg("can't set typing color")
+				p.log.Error().Err(err).Msg("can't set typing color")
 				break
 			}
 
@@ -110,7 +110,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			if cancelFunc != nil {
 				cancelFunc()
 				cancelFunc = nil
-				p.Log.Debug().Msg("no longer idle")
+				p.log.Debug().Msg("no longer idle")
 			}
 
 			atomic.AddInt32(keyPressCount, -1)
@@ -130,18 +130,14 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 
 		diff := time.Since(*idleAt)
 		if diff > p.IdlePeriod {
-			p.Log.Debug().Msg("idle")
+			p.log.Debug().Msg("idle")
 			var cancelCtx context.Context
-			cancelCtx, cancelFunc = context.WithCancel(p.Ctx)
+			cancelCtx, cancelFunc = context.WithCancel(p.ctx)
 			go func() {
 				defer util.LogRecover()
 				bp := p.IdlePattern.GetBase()
-				ilog := p.Log.With().Str("idle", bp.Name).Logger()
-				ilog.Info().Msg("starting")
-				bp.Ctx = cancelCtx
-				bp.Log = &ilog
-				p.IdlePattern.Run()
-				ilog.Info().Msg("stopping")
+				ilog := p.log.With().Str("idle", bp.Name).Logger()
+				p.IdlePattern.Run(cancelCtx, &ilog)
 			}()
 		}
 	}
@@ -159,7 +155,7 @@ func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int
 	for !p.stopRequested {
 		_, err := eventF.Read(buf)
 		if err != nil {
-			p.Log.Error().Err(err).Msg("can't read input events device")
+			p.log.Error().Err(err).Msg("can't read input events device")
 			return
 		}
 

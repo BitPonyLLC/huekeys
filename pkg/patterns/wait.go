@@ -1,5 +1,11 @@
 package patterns
 
+import (
+	"context"
+
+	"github.com/rs/zerolog"
+)
+
 type WaitPattern struct {
 	BasePattern
 }
@@ -12,7 +18,7 @@ func NewWaitPattern() *WaitPattern {
 
 // SPECIAL CASE!! This _overrides_ BasePattern.Run() and will hang forever,
 //                waiting for the parent context to interrupt.
-func (p *WaitPattern) Run() error {
-	<-p.Ctx.Done()
+func (p *WaitPattern) Run(parent context.Context, _ *zerolog.Logger) error {
+	<-parent.Done()
 	return nil
 }

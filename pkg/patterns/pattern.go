@@ -10,16 +10,17 @@ import (
 
 type Pattern interface {
 	GetBase() *BasePattern
-	Run() error
+	Run(context.Context, *zerolog.Logger) error
 }
 
 type BasePattern struct {
 	Name  string
-	Ctx   context.Context
-	Log   *zerolog.Logger
 	Delay time.Duration
 
-	run           func() error
+	run func() error
+	ctx context.Context
+	log *zerolog.Logger
+
 	stopRequested bool
 }
 
@@ -36,28 +37,26 @@ func GetRunning() Pattern {
 	return running
 }
 
-func (p *BasePattern) Run() error {
+func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	mutex.Lock()
 	if cancel != nil {
 		cancel()
 	}
-	var newCtx context.Context
-	newCtx, cancel = context.WithCancel(p.Ctx)
-	p.Ctx = newCtx
+	p.ctx, cancel = context.WithCancel(parent)
 	running = p
 	mutex.Unlock()
 
-	p.Log.Info().Str("name", p.Name).Msg("starting")
-	defer func() {
-		p.Log.Info().Str("name", p.Name).Msg("stopped")
-	}()
+	plog := log.With().Str("pattern", p.Name).Logger()
+	p.log = &plog
+	p.log.Info().Msg("started")
+	defer p.log.Info().Msg("stopped")
 	return p.run() // this will crash if a pattern is defined and doesn't set it
 }
 
 func (p *BasePattern) cancelableSleep() bool {
 	wake := time.NewTimer(p.Delay)
 	select {
-	case <-p.Ctx.Done():
+	case <-p.ctx.Done():
 		wake.Stop()
 		p.stopRequested = true
 		return true
