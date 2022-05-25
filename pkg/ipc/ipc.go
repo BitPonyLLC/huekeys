@@ -36,6 +36,12 @@ func (ipc *IPCServer) Start() error {
 		return fmt.Errorf("unable to listen on %s: %w", ipc.Path, err)
 	}
 
+	// let anyone talk to us
+	err = os.Chmod(ipc.Path, 0666)
+	if err != nil {
+		return fmt.Errorf("unable to change permissions to %s: %w", ipc.Path, err)
+	}
+
 	go func() {
 		defer func() {
 			util.LogRecover()
