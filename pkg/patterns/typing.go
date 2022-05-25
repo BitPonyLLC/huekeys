@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 )
 
 type TypingPattern struct {
@@ -68,7 +69,7 @@ func (p *TypingPattern) Run() error {
 }
 
 func (p *TypingPattern) setColor(keyPressCount *int32) {
-	defer logRecover()
+	defer util.LogRecover()
 
 	var idleAt *time.Time
 	var cancelFunc context.CancelFunc
@@ -128,7 +129,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			var cancelCtx context.Context
 			cancelCtx, cancelFunc = context.WithCancel(p.Ctx)
 			go func() {
-				defer logRecover()
+				defer util.LogRecover()
 				bp := p.IdlePattern.GetBase()
 				ilog := p.Log.With().Str("idle", bp.Name).Logger()
 				ilog.Info().Msg("starting")
@@ -146,7 +147,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 }
 
 func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int32) {
-	defer logRecover()
+	defer util.LogRecover()
 
 	// https://janczer.github.io/work-with-dev-input/
 	buf := make([]byte, 24)

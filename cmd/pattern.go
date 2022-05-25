@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"syscall"
 
@@ -22,7 +23,8 @@ var runCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(runCmd)
 
-	runCmd.PersistentFlags().String("pidpath", os.TempDir()+buildinfo.Name+".pid", "pathname of the pidfile")
+	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.Name+".pid")
+	runCmd.PersistentFlags().String("pidpath", defaultPidPath, "pathname of the pidfile")
 	viper.BindPFlag("pidpath", runCmd.PersistentFlags().Lookup("pidpath"))
 
 	runCmd.PersistentFlags().Int("nice", 10, "the priority level of the process")
@@ -76,11 +78,15 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 
 			basePattern.Ctx = cmd.Context()
 			basePattern.Log = &plog
-			return nil
+
+			return startIPCServer(cmd.Context())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")
-			return pattern.Run()
+			println("BARF waiting, doing nothing...")
+			<-cmd.Context().Done()
+			return nil
+			// return pattern.Run()
 		},
 		PostRun: func(_ *cobra.Command, _ []string) {
 			os.Remove(pidpath)

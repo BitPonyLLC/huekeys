@@ -13,6 +13,7 @@ import (
 
 	"github.com/BitPonyLLC/huekeys/internal/image_matcher"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 	"github.com/rs/zerolog"
 )
 
@@ -69,7 +70,7 @@ func (p *DesktopPattern) Run() error {
 	p.Log.Debug().Int("pid", p.backgroundProcess.Pid).Msg("started desktop background monitor")
 
 	go func() {
-		defer logRecover()
+		defer util.LogRecover()
 		proc := p.backgroundProcess
 		state, err := proc.Wait()
 		var ev *zerolog.Event
@@ -83,7 +84,7 @@ func (p *DesktopPattern) Run() error {
 	}()
 
 	go func() {
-		defer logRecover()
+		defer util.LogRecover()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()

@@ -155,7 +155,7 @@ func setupLogging(cmd *cobra.Command) error {
 			w.Out = os.Stderr
 		})
 	default:
-		logF, err := os.Create(logDst)
+		logF, err := os.OpenFile(logDst, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			return fail(4, "unable to open %s: %w", logDst, err)
 		}
