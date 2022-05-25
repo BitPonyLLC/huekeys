@@ -24,14 +24,19 @@ type DesktopPattern struct {
 }
 
 func NewDesktopPattern() *DesktopPattern {
-	return &DesktopPattern{BasePattern: BasePattern{Name: "desktop"}}
+	p := &DesktopPattern{}
+	p.BasePattern = BasePattern{
+		Name: "desktop",
+		run:  p.run,
+	}
+	return p
 }
 
 var _ Pattern = (*DesktopPattern)(nil) // ensures we conform to the Pattern interface
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
 
-func (p *DesktopPattern) Run() error {
+func (p *DesktopPattern) run() error {
 	colorScheme, err := p.getDesktopSetting("interface", "color-scheme")
 	if err != nil {
 		return err

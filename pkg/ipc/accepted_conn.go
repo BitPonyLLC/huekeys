@@ -36,19 +36,21 @@ func (ac *acceptedConn) handleCommands() {
 	scanner := bufio.NewScanner(ac.conn)
 	for scanner.Scan() {
 		line := scanner.Text()
-
 		clog := ac.parent.Log.With().Str("cmd", line).Logger()
 
 		args, err := shellwords.Parse(line)
 		if err != nil {
 			errWriter.Writeln("unable to parse command: %s", line)
 		} else {
-			clog.Debug().Msg("executing")
-			ac.cmd.SetArgs(args)
-			err = ac.cmd.ExecuteContext(ac.parent.Ctx)
-			if err != nil {
-				clog.Error().Err(err).Msg("command failed")
-			}
+			// need to run async to allow more commands from client
+			go func() {
+				clog.Debug().Msg("executing")
+				ac.cmd.SetArgs(args)
+				err = ac.cmd.ExecuteContext(ac.parent.Ctx)
+				if err != nil {
+					clog.Error().Err(err).Msg("command failed")
+				}
+			}()
 		}
 
 		done := false

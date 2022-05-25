@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/BitPonyLLC/huekeys/internal/image_matcher"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/patterns"
 
 	"github.com/spf13/cobra"
 )
@@ -15,6 +16,11 @@ var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Gets the color and brightness of the keyboard",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		pattern := patterns.GetRunning()
+		if pattern != nil {
+			cmd.Println("running =", pattern.GetBase().Name)
+		}
+
 		brightness, err := keyboard.GetCurrentBrightness()
 		if err != nil {
 			return fail(11, err)

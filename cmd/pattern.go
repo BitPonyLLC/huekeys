@@ -32,6 +32,7 @@ func init() {
 	runCmd.PersistentFlags().Int("nice", 10, "the priority level of the process")
 	viper.BindPFlag("nice", runCmd.PersistentFlags().Lookup("nice"))
 
+	addPatternCmd("wait for remote commands", patterns.NewWaitPattern())
 	addPatternCmd("pulse the keyboard brightness up and down", patterns.NewPulsePattern())
 	addPatternCmd("loop through all the colors of the rainbow", patterns.NewRainbowPattern())
 	addPatternCmd("constantly change the color to a random selection", patterns.NewRandomPattern())
@@ -89,9 +90,6 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")
-			// println("BARF waiting, doing nothing...")
-			// <-cmd.Context().Done()
-			// return nil
 			return pattern.Run()
 		},
 		PostRun: func(_ *cobra.Command, _ []string) {

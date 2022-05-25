@@ -32,14 +32,18 @@ const DefaultIdlePeriod = 30 * time.Second
 var _ Pattern = (*TypingPattern)(nil) // ensures we conform to the Pattern interface
 
 func NewTypingPattern() *TypingPattern {
-	return &TypingPattern{BasePattern: BasePattern{
-		Name:  "typing",
-		Delay: DefaultTypingDelay},
+	p := &TypingPattern{
 		IdlePeriod: DefaultIdlePeriod,
 	}
+	p.BasePattern = BasePattern{
+		Name:  "typing",
+		Delay: DefaultTypingDelay,
+		run:   p.run,
+	}
+	return p
 }
 
-func (p *TypingPattern) Run() error {
+func (p *TypingPattern) run() error {
 	if p.InputEventID == "" {
 		var err error
 		p.InputEventID, err = getInputEventID()
