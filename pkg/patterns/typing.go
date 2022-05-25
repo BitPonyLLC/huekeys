@@ -14,27 +14,36 @@ import (
 	"time"
 
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 )
 
 type TypingPattern struct {
 	BasePattern
 
 	InputEventID string
+	CountAllKeys bool
 	IdlePattern  Pattern
+	IdlePeriod   time.Duration
 }
 
 const DefaultTypingDelay = 300 * time.Millisecond
+const DefaultIdlePeriod = 30 * time.Second
 
 var _ Pattern = (*TypingPattern)(nil) // ensures we conform to the Pattern interface
 
 func NewTypingPattern() *TypingPattern {
-	return &TypingPattern{BasePattern: BasePattern{
+	p := &TypingPattern{
+		IdlePeriod: DefaultIdlePeriod,
+	}
+	p.BasePattern = BasePattern{
 		Name:  "typing",
 		Delay: DefaultTypingDelay,
-	}}
+		run:   p.run,
+	}
+	return p
 }
 
-func (p *TypingPattern) Run() error {
+func (p *TypingPattern) run() error {
 	if p.InputEventID == "" {
 		var err error
 		p.InputEventID, err = getInputEventID()
@@ -58,13 +67,15 @@ func (p *TypingPattern) Run() error {
 	go p.setColor(&keyPressCount)
 	go p.processTypingEvents(f, &keyPressCount)
 
-	<-p.Ctx.Done()
+	<-p.ctx.Done()
 	p.stopRequested = true
 
 	return nil
 }
 
 func (p *TypingPattern) setColor(keyPressCount *int32) {
+	defer util.LogRecover()
+
 	var idleAt *time.Time
 	var cancelFunc context.CancelFunc
 
@@ -86,7 +97,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			color := coldHotColors[i]
 			err := keyboard.ColorFileHandler(color)
 			if err != nil {
-				p.Log.Error().Err(err).Msg("can't set typing color")
+				p.log.Error().Err(err).Msg("can't set typing color")
 				break
 			}
 
@@ -94,12 +105,14 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 		}
 
 		if i > 0 {
-			idleAt = nil
-
-			if cancelFunc != nil {
-				cancelFunc()
-				cancelFunc = nil
-				p.Log.Debug().Msg("no longer idle")
+			// wait for 2 keypresses to avoid halting the pattern for control-key sequences
+			if i > 1 {
+				idleAt = nil
+				if cancelFunc != nil {
+					cancelFunc()
+					cancelFunc = nil
+					p.log.Debug().Msg("no longer idle")
+				}
 			}
 
 			atomic.AddInt32(keyPressCount, -1)
@@ -118,18 +131,18 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 		}
 
 		diff := time.Since(*idleAt)
-		if diff > 30*time.Second {
-			p.Log.Debug().Msg("idle")
+		if diff > p.IdlePeriod {
+			p.log.Debug().Msg("idle")
 			var cancelCtx context.Context
-			cancelCtx, cancelFunc = context.WithCancel(p.Ctx)
+			cancelCtx, cancelFunc = context.WithCancel(p.ctx)
 			go func() {
+				defer util.LogRecover()
 				bp := p.IdlePattern.GetBase()
-				ilog := p.Log.With().Str("idle", bp.Name).Logger()
-				ilog.Info().Msg("starting")
-				bp.Ctx = cancelCtx
-				bp.Log = &ilog
-				p.IdlePattern.Run()
-				ilog.Info().Msg("stopping")
+				ilog := p.log.With().Str("idle", bp.Name).Logger()
+				bp.ctx = cancelCtx
+				bp.log = &ilog
+				// using the private runner otherwise, we'll get canceled! ;)
+				bp.run()
 			}()
 		}
 	}
@@ -140,28 +153,35 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 }
 
 func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int32) {
+	defer util.LogRecover()
+
 	// https://janczer.github.io/work-with-dev-input/
 	buf := make([]byte, 24)
 	for !p.stopRequested {
 		_, err := eventF.Read(buf)
 		if err != nil {
-			p.Log.Error().Err(err).Msg("can't read input events device")
+			p.log.Error().Err(err).Msg("can't read input events device")
 			return
 		}
 
+		// typ is the kind of event being reported
 		typ := binary.LittleEndian.Uint16(buf[16:18])
-		// code := binary.LittleEndian.Uint16(buf[18:20])
 
+		// value is the state of the event being reported (on/off, pressed/unpressed, etc.)
 		var value int32
 		binary.Read(bytes.NewReader(buf[20:]), binary.LittleEndian, &value)
 
 		// we only care when typ is EV_KEY and value indicates "pressed"
 		// https://github.com/torvalds/linux/blob/v5.17/include/uapi/linux/input-event-codes.h#L34-L51
 		if typ == 1 && value == 1 {
-			// sec := binary.LittleEndian.Uint64(buf[0:8])
-			// usec := binary.LittleEndian.Uint64(buf[8:16])
-			// ts := time.Unix(int64(sec), int64(usec)*1000)
-			atomic.AddInt32(keyPressCount, 1)
+			// in this context, code indicates what key was pressed
+			code := binary.LittleEndian.Uint16(buf[18:20])
+			if p.CountAllKeys || isPrintable(code) {
+				// sec := binary.LittleEndian.Uint64(buf[0:8])
+				// usec := binary.LittleEndian.Uint64(buf[8:16])
+				// ts := time.Unix(int64(sec), int64(usec)*1000)
+				atomic.AddInt32(keyPressCount, 1)
+			}
 		}
 	}
 }
@@ -197,4 +217,13 @@ func getInputEventID() (string, error) {
 	}
 
 	return "", fmt.Errorf("can't find a keyboard input device")
+}
+
+func isPrintable(code uint16) bool {
+	// https://github.com/torvalds/linux/blob/v5.17/include/uapi/linux/input-event-codes.h#L64
+	return (1 < code && code < 14) ||
+		(15 < code && code < 29) ||
+		(29 < code && code < 42) ||
+		(42 < code && code < 54) ||
+		(code == 57)
 }

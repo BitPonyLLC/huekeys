@@ -15,13 +15,16 @@ const DefaultRandomDelay = 1 * time.Second
 var _ Pattern = (*RandomPattern)(nil) // ensures we conform to the Pattern interface
 
 func NewRandomPattern() *RandomPattern {
-	return &RandomPattern{BasePattern: BasePattern{
+	p := &RandomPattern{}
+	p.BasePattern = BasePattern{
 		Name:  "random",
 		Delay: DefaultRandomDelay,
-	}}
+		run:   p.run,
+	}
+	return p
 }
 
-func (p *RandomPattern) Run() error {
+func (p *RandomPattern) run() error {
 	for {
 		err := keyboard.ColorFileHandler(keyboard.RandomColor)
 		if err != nil {

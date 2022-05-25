@@ -8,27 +8,35 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"syscall"
 	"unicode"
 
 	"github.com/BitPonyLLC/huekeys/internal/image_matcher"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 	"github.com/rs/zerolog"
 )
 
 type DesktopPattern struct {
 	BasePattern
+
+	backgroundProcess *os.Process
 }
 
 func NewDesktopPattern() *DesktopPattern {
-	return &DesktopPattern{BasePattern: BasePattern{Name: "desktop"}}
+	p := &DesktopPattern{}
+	p.BasePattern = BasePattern{
+		Name: "desktop",
+		run:  p.run,
+	}
+	return p
 }
 
 var _ Pattern = (*DesktopPattern)(nil) // ensures we conform to the Pattern interface
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
-var backgroundProcess *os.Process
 
-func (p *DesktopPattern) Run() error {
+func (p *DesktopPattern) run() error {
 	colorScheme, err := p.getDesktopSetting("interface", "color-scheme")
 	if err != nil {
 		return err
@@ -52,6 +60,7 @@ func (p *DesktopPattern) Run() error {
 	p.setColorFrom(pictureURL.Path)
 
 	cmd := p.newDesktopSettingCmd("monitor", "background", pictureKey)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("can't get stdout of desktop background monitor: %w", err)
@@ -62,36 +71,38 @@ func (p *DesktopPattern) Run() error {
 		return fmt.Errorf("can't start desktop background monitor: %w", err)
 	}
 
-	backgroundProcess = cmd.Process
-	p.Log.Debug().Int("pid", backgroundProcess.Pid).Msg("started desktop background monitor")
+	p.backgroundProcess = cmd.Process
+	p.log.Debug().Int("pid", p.backgroundProcess.Pid).Msg("started desktop background monitor")
 
 	go func() {
-		proc := backgroundProcess
+		defer util.LogRecover()
+		proc := p.backgroundProcess
 		state, err := proc.Wait()
 		var ev *zerolog.Event
 		if p.stopRequested {
-			ev = p.Log.Debug()
+			ev = p.log.Debug()
 		} else {
-			ev = p.Log.Error()
+			ev = p.log.Error()
 		}
 		ev.Err(err).Int("pid", proc.Pid).Str("state", state.String()).
 			Msg("desktop background monitor has stopped")
 	}()
 
 	go func() {
+		defer util.LogRecover()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
 			m := pictureURIMonitorRE.FindStringSubmatch(line)
 			if m == nil || len(m) < 2 || m[1] == "" {
-				p.Log.Warn().Str("line", line).Msg("ignoring unknown content from desktop background monitor")
+				p.log.Warn().Str("line", line).Msg("ignoring unknown content from desktop background monitor")
 				continue
 			}
 			p.setColorFrom(m[1])
 		}
 	}()
 
-	<-p.Ctx.Done()
+	<-p.ctx.Done()
 	p.stopDesktopBackgroundMonitor()
 
 	return nil
@@ -109,7 +120,7 @@ func (p *DesktopPattern) newDesktopSettingCmd(action, group, key string) *exec.C
 			args = []string{"-Eu", sudoUser, "gsettings"}
 			if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
 				// we need access to the user's gnome session in order to look up correct setting values
-				p.Log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
+				p.log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
 			}
 		}
 	}
@@ -124,7 +135,7 @@ func (p *DesktopPattern) getDesktopSetting(group, key string) (string, error) {
 	// TODO: consider using D-Bus directly instead of gsettings...
 	val, err := p.newDesktopSettingCmd("get", group, key).Output()
 	if err != nil {
-		p.Log.Error().Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
+		p.log.Error().Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
 		return "", err
 	}
 
@@ -143,19 +154,18 @@ func (p *DesktopPattern) setColorFrom(u string) error {
 		return fmt.Errorf("can't determine dominant color: %w", err)
 	}
 
-	p.Log.Info().Str("color", color).Str("path", pictureURL.Path).Msg("setting")
+	p.log.Info().Str("color", color).Str("path", pictureURL.Path).Msg("setting")
 
 	return keyboard.ColorFileHandler(color)
 }
 func (p *DesktopPattern) stopDesktopBackgroundMonitor() {
-	if backgroundProcess != nil {
-		proc := backgroundProcess
-		p.Log.Debug().Int("pid", proc.Pid).Msg("stopping desktop background monitor")
-		backgroundProcess = nil
+	if p.backgroundProcess != nil {
+		proc := p.backgroundProcess
+		p.log.Debug().Int("pid", proc.Pid).Msg("stopping desktop background monitor")
 		p.stopRequested = true
-		err := proc.Kill()
+		err := syscall.Kill(-proc.Pid, syscall.SIGTERM)
 		if err != nil {
-			p.Log.Error().Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
+			p.log.Error().Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
 		}
 	}
 }

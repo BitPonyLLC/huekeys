@@ -16,6 +16,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -121,10 +122,16 @@ func showConfig() error {
 	return nil
 }
 
+const minimalTimeFormat = "15:04:05.000"
+
 func setupLogging(cmd *cobra.Command) error {
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+
 	var logWriter io.Writer
 
+	withTime := true
 	logDst := viper.GetString("log-dst")
+
 	switch logDst {
 	case "syslog":
 		syslogger, err := syslog.New(syslog.LOG_INFO, buildinfo.Name)
@@ -132,23 +139,26 @@ func setupLogging(cmd *cobra.Command) error {
 			return fail(3, err)
 		}
 
+		withTime = false
 		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
 			w.NoColor = true
 			w.PartsExclude = []string{zerolog.TimestampFieldName}
 			w.Out = zerolog.SyslogLevelWriter(syslogger)
 		})
 	case "stdout":
+		zerolog.TimeFieldFormat = minimalTimeFormat
 		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
-			w.PartsExclude = []string{zerolog.TimestampFieldName}
+			w.TimeFormat = minimalTimeFormat
 			w.Out = os.Stdout
 		})
 	case "stderr":
+		zerolog.TimeFieldFormat = minimalTimeFormat
 		logWriter = zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
-			w.PartsExclude = []string{zerolog.TimestampFieldName}
+			w.TimeFormat = minimalTimeFormat
 			w.Out = os.Stderr
 		})
 	default:
-		logF, err := os.Open(logDst)
+		logF, err := os.OpenFile(logDst, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			return fail(4, "unable to open %s: %w", logDst, err)
 		}
@@ -162,7 +172,13 @@ func setupLogging(cmd *cobra.Command) error {
 	}
 
 	zerolog.SetGlobalLevel(level)
-	log.Logger = zerolog.New(logWriter)
+
+	if withTime {
+		log.Logger = zerolog.New(logWriter).With().Timestamp().Logger()
+	} else {
+		log.Logger = zerolog.New(logWriter)
+	}
+
 	return nil
 }
 
