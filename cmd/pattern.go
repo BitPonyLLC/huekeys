@@ -140,6 +140,7 @@ func checkAndSetPidPath(pidpath string) error {
 			return fmt.Errorf("unable to read %s: %w", pidpath, err)
 		}
 	}
+
 	err = os.WriteFile(pidpath, []byte(fmt.Sprint(os.Getpid())), 0666)
 	if err != nil {
 		return fmt.Errorf("unable to write to %s: %w", pidpath, err)

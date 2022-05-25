@@ -159,28 +159,35 @@ func ColorFileHandler(color string) error {
 	if sys.Path == "" {
 		return errors.New("can't get a valid sysfs leds path")
 	}
+
 	if presetColor, exists := presetColors[color]; exists {
 		color = presetColor.GetColorInHex()
 	} else if color == RandomColor {
 		color = getRandomColor()
 	}
+
 	for _, file := range sys.Files {
 		if file == "" {
 			continue
 		}
+
 		p := fmt.Sprintf("%v/%v", sys.Path, file)
 		fh, err := os.OpenFile(p, os.O_RDWR, 0755)
 		if err != nil {
 			log.Warn().Err(err).Str("path", sys.Path).Msg("can't open")
 			continue
 		}
+		defer fh.Close()
+
 		_, err = fh.WriteString(color)
 		if err != nil {
 			log.Warn().Err(err).Str("path", sys.Path).Msg("can't set color")
 			continue
 		}
-		fh.Close()
+
+		log.Trace().Str("file", p).Str("color", color).Msg("set")
 	}
+
 	return nil
 }
 

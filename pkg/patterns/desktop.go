@@ -18,6 +18,8 @@ import (
 
 type DesktopPattern struct {
 	BasePattern
+
+	backgroundProcess *os.Process
 }
 
 func NewDesktopPattern() *DesktopPattern {
@@ -27,7 +29,6 @@ func NewDesktopPattern() *DesktopPattern {
 var _ Pattern = (*DesktopPattern)(nil) // ensures we conform to the Pattern interface
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
-var backgroundProcess *os.Process
 
 func (p *DesktopPattern) Run() error {
 	colorScheme, err := p.getDesktopSetting("interface", "color-scheme")
@@ -64,12 +65,12 @@ func (p *DesktopPattern) Run() error {
 		return fmt.Errorf("can't start desktop background monitor: %w", err)
 	}
 
-	backgroundProcess = cmd.Process
-	p.Log.Debug().Int("pid", backgroundProcess.Pid).Msg("started desktop background monitor")
+	p.backgroundProcess = cmd.Process
+	p.Log.Debug().Int("pid", p.backgroundProcess.Pid).Msg("started desktop background monitor")
 
 	go func() {
 		defer logRecover()
-		proc := backgroundProcess
+		proc := p.backgroundProcess
 		state, err := proc.Wait()
 		var ev *zerolog.Event
 		if p.stopRequested {
@@ -152,9 +153,8 @@ func (p *DesktopPattern) setColorFrom(u string) error {
 	return keyboard.ColorFileHandler(color)
 }
 func (p *DesktopPattern) stopDesktopBackgroundMonitor() {
-	if backgroundProcess != nil {
-		proc := backgroundProcess
-		backgroundProcess = nil
+	if p.backgroundProcess != nil {
+		proc := p.backgroundProcess
 		p.Log.Debug().Int("pid", proc.Pid).Msg("stopping desktop background monitor")
 		p.stopRequested = true
 		err := syscall.Kill(-proc.Pid, syscall.SIGTERM)
