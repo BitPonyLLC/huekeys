@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"net"
 
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 	"github.com/mattn/go-shellwords"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +18,7 @@ type acceptedConn struct {
 func (ac *acceptedConn) handleCommands() {
 	ac.parent.conns.Store(ac, ac)
 	defer func() {
+		util.LogRecover()
 		ac.parent.conns.Delete(ac)
 		ac.conn.Close()
 		ac.parent.Log.Info().Msg("client disconnected")
@@ -44,6 +46,7 @@ func (ac *acceptedConn) handleCommands() {
 		} else {
 			// need to run async to allow more commands from client
 			go func() {
+				defer util.LogRecover()
 				clog.Debug().Msg("executing")
 				ac.cmd.SetArgs(args)
 				err = ac.cmd.ExecuteContext(ac.parent.Ctx)
