@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
@@ -16,6 +17,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+type alreadyRunningError struct {
+	pid int
+}
+
+func (e *alreadyRunningError) Error() string {
+	return fmt.Sprintf("process %d is already running a pattern", e.pid)
+}
 
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -63,6 +72,8 @@ func init() {
 }
 
 func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
+	var alreadyRunning *alreadyRunningError
+	pidpathCreated := false
 	pidpath := viper.GetString("pidpath")
 	priority := viper.GetInt("nice")
 	basePattern := pattern.GetBase()
@@ -71,19 +82,31 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		Short: short,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			if err := checkAndSetPidPath(pidpath); err != nil {
+				var ok bool
+				if alreadyRunning, ok = err.(*alreadyRunningError); ok {
+					log.Debug().Err(err).Msg("will try to send command over IPC")
+					return nil
+				}
 				return fail(11, err)
 			}
+			pidpathCreated = true
 			if err := beNice(priority); err != nil {
 				return fail(12, err)
 			}
 			return startIPCServer(cmd.Context())
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if alreadyRunning != nil {
+				cmd.Printf("Another process already running as %d: sending command...\n", alreadyRunning.pid)
+				return sendViaIPC(cmd)
+			}
 			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")
 			return pattern.Run(cmd.Context(), &log.Logger)
 		},
 		PostRun: func(_ *cobra.Command, _ []string) {
-			os.Remove(pidpath)
+			if pidpathCreated {
+				os.Remove(pidpath)
+			}
 		},
 	}
 
@@ -133,7 +156,7 @@ func checkAndSetPidPath(pidpath string) error {
 		err = syscall.Kill(otherPid, 0)
 		if err == nil || err.(syscall.Errno) == syscall.EPERM {
 			// if EPERM, process is owned by another user, probably root
-			return fmt.Errorf("process %d is already running a pattern", otherPid)
+			return &alreadyRunningError{pid: otherPid}
 		}
 
 		// ESRCH: no such process
@@ -163,13 +186,38 @@ func beNice(priority int) error {
 	return nil
 }
 
+var sockPath = filepath.Join(os.TempDir(), buildinfo.Name+".sock")
+
 func startIPCServer(ctx context.Context) error {
 	svr := ipc.IPCServer{
 		Ctx:  ctx,
-		Path: filepath.Join(os.TempDir(), buildinfo.Name+".sock"),
+		Path: sockPath,
 		Cmd:  rootCmd,
 		Log:  &log.Logger,
 	}
 
 	return svr.Start()
+}
+
+func sendViaIPC(cmd *cobra.Command) error {
+	cli := &ipc.IPCClient{}
+	err := cli.Connect(sockPath)
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	msg := strings.Join(os.Args[1:], " ")
+	resp, err := cli.Send(msg)
+	if err != nil {
+		return err
+	}
+
+	if resp == "" {
+		cmd.Print("Delivered: no response received")
+	} else {
+		cmd.Print(resp)
+	}
+
+	return nil
 }

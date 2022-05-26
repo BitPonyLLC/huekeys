@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/BitPonyLLC/huekeys/pkg/util"
+
 	"github.com/mattn/go-shellwords"
 	"github.com/spf13/cobra"
 )
