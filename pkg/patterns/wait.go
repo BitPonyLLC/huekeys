@@ -3,11 +3,15 @@ package patterns
 import (
 	"context"
 
+	"github.com/BitPonyLLC/huekeys/internal/menu"
+
 	"github.com/rs/zerolog"
 )
 
 type WaitPattern struct {
 	BasePattern
+
+	ShowMenu bool
 }
 
 var _ Pattern = (*WaitPattern)(nil) // ensures we conform to the Pattern interface
@@ -20,6 +24,11 @@ func NewWaitPattern() *WaitPattern {
 // SPECIAL CASE!! This _overrides_ BasePattern.Run() and will hang forever,
 //                waiting for the parent context to interrupt.
 func (p *WaitPattern) Run(parent context.Context, _ *zerolog.Logger) error {
-	<-parent.Done()
+	if p.ShowMenu {
+		menu.Show(parent)
+	} else {
+		<-parent.Done()
+	}
+
 	return nil
 }

@@ -28,13 +28,14 @@ func init() {
 	runCmd.PersistentFlags().Int("nice", 10, "the priority level of the process")
 	viper.BindPFlag("nice", runCmd.PersistentFlags().Lookup("nice"))
 
-	addPatternCmd("wait for remote commands", patterns.NewWaitPattern())
+	//----------------------------------------
 	addPatternCmd("pulse the keyboard brightness up and down", patterns.NewPulsePattern())
 	addPatternCmd("loop through all the colors of the rainbow", patterns.NewRainbowPattern())
 	addPatternCmd("constantly change the color to a random selection", patterns.NewRandomPattern())
 	addPatternCmd("change the color according to CPU utilization (cold to hot)", patterns.NewCPUPattern())
 	addPatternCmd("monitor the desktop picture and change the keyboard color to match", patterns.NewDesktopPattern())
 
+	//----------------------------------------
 	typingPattern := patterns.NewTypingPattern()
 	typingPatternCmd := addPatternCmd("change the color according to typing speed (cold to hot)", typingPattern)
 
@@ -56,6 +57,18 @@ func init() {
 		typingPattern.IdlePattern, err = getIdlePattern(cmd, viper.GetString("typing.idle"))
 		return
 	}
+
+	//----------------------------------------
+	waitPattern := patterns.NewWaitPattern()
+	waitPatternCmd := addPatternCmd("wait for remote commands", waitPattern)
+
+	waitPatternCmd.Flags().BoolP("menu", "m", waitPattern.ShowMenu, "show a menu in the system tray")
+	viper.BindPFlag("wait.menu", waitPatternCmd.Flags().Lookup("menu"))
+
+	waitPatternCmd.Args = func(_ *cobra.Command, _ []string) error {
+		waitPattern.ShowMenu = viper.GetBool("wait.menu")
+		return nil
+	}
 }
 
 func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
@@ -68,6 +81,9 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			if err := pidPath.CheckAndSet(); err != nil {
 				if pidPath.IsRunning() {
+					if cmd.Name() == "wait" {
+						return err
+					}
 					log.Debug().Err(err).Msg("ignoring")
 					return nil
 				}

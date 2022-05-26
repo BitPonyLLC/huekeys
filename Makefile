@@ -4,7 +4,7 @@ LDFLAGS = -s -w
 CNAMESFN := pkg/keyboard/colornames.csv.gz
 
 build: $(CNAMESFN)
-	$(RM) huekeys # removed to make it obvioius when watch fails
+	$(RM) huekeys # to make it obvious when watch fails
 	$(GO) generate ./...
 	$(GO) build -ldflags='$(LDFLAGS)'
 
