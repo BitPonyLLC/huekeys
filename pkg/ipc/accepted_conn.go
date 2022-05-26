@@ -42,6 +42,7 @@ func (ac *acceptedConn) handleCommands(parent *IPCServer) {
 		if err != nil {
 			errWriter.Writeln("unable to parse command: %s", line)
 		} else {
+			parent.LastCmd = line
 			// need to run async to allow more commands from client
 			go func() {
 				defer util.LogRecover()

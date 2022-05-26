@@ -1,29 +1,17 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
-	"syscall"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
-	"github.com/BitPonyLLC/huekeys/pkg/ipc"
 	"github.com/BitPonyLLC/huekeys/pkg/patterns"
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-type alreadyRunningError struct {
-	pid int
-}
-
-func (e *alreadyRunningError) Error() string {
-	return fmt.Sprintf("process %d is already running a pattern", e.pid)
-}
 
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -71,11 +59,6 @@ func init() {
 }
 
 func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
-	var alreadyRunning *alreadyRunningError
-	var ipcServer *ipc.IPCServer
-
-	pidpathCreated := false
-	pidpath := viper.GetString("pidpath")
 	priority := viper.GetInt("nice")
 	basePattern := pattern.GetBase()
 
@@ -83,39 +66,27 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		Use:   pattern.GetBase().Name,
 		Short: short,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			if err := checkAndSetPidPath(pidpath); err != nil {
-				var ok bool
-				if alreadyRunning, ok = err.(*alreadyRunningError); ok {
-					log.Debug().Err(err).Msg("will try to send command over IPC")
+			if err := pidPath.CheckAndSet(); err != nil {
+				if pidPath.IsOtherRunning() {
+					log.Debug().Err(err).Msg("ignoring")
 					return nil
 				}
 				return fail(11, err)
 			}
-			pidpathCreated = true
-			if err := beNice(priority); err != nil {
+			if err := util.BeNice(priority); err != nil {
 				return fail(12, err)
 			}
 			if _, ok := pattern.(*patterns.WaitPattern); ok {
-				ipcServer = &ipc.IPCServer{}
 				return ipcServer.Start(cmd.Context(), &log.Logger, sockPath, rootCmd)
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if alreadyRunning != nil {
-				cmd.Printf("Another process already running as %d: sending command...\n", alreadyRunning.pid)
+			if pidPath.IsOtherRunning() {
 				return sendViaIPC(cmd)
 			}
 			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")
 			return pattern.Run(cmd.Context(), &log.Logger)
-		},
-		PostRun: func(_ *cobra.Command, _ []string) {
-			if pidpathCreated {
-				os.Remove(pidpath)
-			}
-			if ipcServer != nil {
-				ipcServer.Stop()
-			}
 		},
 	}
 
@@ -146,76 +117,4 @@ func getIdlePattern(cmd *cobra.Command, patternName string) (patterns.Pattern, e
 	default:
 		return nil, fail(13, "unknown pattern: %s", patternName)
 	}
-}
-
-func checkAndSetPidPath(pidpath string) error {
-	otherPidContent, err := os.ReadFile(pidpath)
-	if err == nil {
-		var otherPid int
-		otherPid, err = strconv.Atoi(string(otherPidContent))
-		if err != nil {
-			return fmt.Errorf("unable to parse contents of %s: %w", pidpath, err)
-		}
-
-		if otherPid == os.Getpid() {
-			// just ourselves, probably running an IPC command
-			return nil
-		}
-
-		err = syscall.Kill(otherPid, 0)
-		if err == nil || err.(syscall.Errno) == syscall.EPERM {
-			// if EPERM, process is owned by another user, probably root
-			return &alreadyRunningError{pid: otherPid}
-		}
-
-		// ESRCH: no such process
-		if err.(syscall.Errno) != syscall.ESRCH {
-			return fmt.Errorf("unable to check if process %d is still running: %w", otherPid, err)
-		}
-	} else {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("unable to read %s: %w", pidpath, err)
-		}
-	}
-
-	err = os.WriteFile(pidpath, []byte(fmt.Sprint(os.Getpid())), 0666)
-	if err != nil {
-		return fmt.Errorf("unable to write to %s: %w", pidpath, err)
-	}
-
-	return nil
-}
-
-func beNice(priority int) error {
-	pid := syscall.Getpid()
-	err := syscall.Setpriority(syscall.PRIO_PROCESS, pid, priority)
-	if err != nil {
-		return fmt.Errorf("unable to set nice level %d: %w", priority, err)
-	}
-	return nil
-}
-
-var sockPath = filepath.Join(os.TempDir(), buildinfo.Name+".sock")
-
-func sendViaIPC(cmd *cobra.Command) error {
-	cli := &ipc.IPCClient{}
-	err := cli.Connect(sockPath)
-	if err != nil {
-		return err
-	}
-	defer cli.Close()
-
-	msg := strings.Join(os.Args[1:], " ")
-	resp, err := cli.Send(msg)
-	if err != nil {
-		return err
-	}
-
-	if resp == "" {
-		cmd.Print("Delivered: no response received")
-	} else {
-		cmd.Print(resp)
-	}
-
-	return nil
 }

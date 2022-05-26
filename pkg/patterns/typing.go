@@ -43,6 +43,14 @@ func NewTypingPattern() *TypingPattern {
 	return p
 }
 
+func (p *TypingPattern) String() string {
+	str := p.BasePattern.String()
+	if p.IdlePattern != nil {
+		str += fmt.Sprintf("idle=[%s]", p.IdlePattern)
+	}
+	return str
+}
+
 func (p *TypingPattern) run() error {
 	if p.InputEventID == "" {
 		var err error

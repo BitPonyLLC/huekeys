@@ -17,8 +17,12 @@ var getCmd = &cobra.Command{
 	Short: "Gets the color and brightness of the keyboard",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pattern := patterns.GetRunning()
-		if pattern != nil {
-			cmd.Println("running =", pattern.GetBase().Name)
+		if pattern == nil {
+			if pidPath.IsOtherRunning() {
+				return sendViaIPC(cmd)
+			}
+		} else {
+			cmd.Println("running =", pattern)
 		}
 
 		brightness, err := keyboard.GetCurrentBrightness()

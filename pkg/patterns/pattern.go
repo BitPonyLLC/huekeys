@@ -2,6 +2,7 @@ package patterns
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 type Pattern interface {
 	GetBase() *BasePattern
 	Run(context.Context, *zerolog.Logger) error
+	String() string
 }
 
 type BasePattern struct {
@@ -51,6 +53,13 @@ func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	p.log.Info().Msg("started")
 	defer p.log.Info().Msg("stopped")
 	return p.run() // this will crash if a pattern is defined and doesn't set it
+}
+
+func (p *BasePattern) String() string {
+	if p.Delay == 0 {
+		return p.Name
+	}
+	return fmt.Sprintf("%s delay=%s", p.Name, p.Delay)
 }
 
 func (p *BasePattern) cancelableSleep() bool {
