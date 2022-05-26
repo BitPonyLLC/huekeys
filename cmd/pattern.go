@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,10 +72,13 @@ func init() {
 
 func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 	var alreadyRunning *alreadyRunningError
+	var ipcServer *ipc.IPCServer
+
 	pidpathCreated := false
 	pidpath := viper.GetString("pidpath")
 	priority := viper.GetInt("nice")
 	basePattern := pattern.GetBase()
+
 	cmd := &cobra.Command{
 		Use:   pattern.GetBase().Name,
 		Short: short,
@@ -94,7 +96,8 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 				return fail(12, err)
 			}
 			if _, ok := pattern.(*patterns.WaitPattern); ok {
-				return startIPCServer(cmd.Context())
+				ipcServer = &ipc.IPCServer{}
+				return ipcServer.Start(cmd.Context(), &log.Logger, sockPath, rootCmd)
 			}
 			return nil
 		},
@@ -109,6 +112,9 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		PostRun: func(_ *cobra.Command, _ []string) {
 			if pidpathCreated {
 				os.Remove(pidpath)
+			}
+			if ipcServer != nil {
+				ipcServer.Stop()
 			}
 		},
 	}
@@ -190,11 +196,6 @@ func beNice(priority int) error {
 }
 
 var sockPath = filepath.Join(os.TempDir(), buildinfo.Name+".sock")
-
-func startIPCServer(ctx context.Context) error {
-	svr := ipc.IPCServer{}
-	return svr.Start(ctx, &log.Logger, sockPath, rootCmd)
-}
 
 func sendViaIPC(cmd *cobra.Command) error {
 	cli := &ipc.IPCClient{}

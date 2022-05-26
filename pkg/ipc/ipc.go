@@ -14,10 +14,12 @@ import (
 )
 
 type IPCServer struct {
-	ctx   context.Context
-	log   *zerolog.Logger
-	conns sync.Map
-	cmd   *cobra.Command
+	ctx           context.Context
+	log           *zerolog.Logger
+	cmd           *cobra.Command
+	listener      net.Listener
+	conns         sync.Map
+	stopRequested bool
 }
 
 func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path string, cmd *cobra.Command) error {
@@ -29,7 +31,7 @@ func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path strin
 	}
 
 	var lc net.ListenConfig
-	l, err := lc.Listen(ctx, "unix", path)
+	ipc.listener, err = lc.Listen(ctx, "unix", path)
 	if err != nil {
 		return fmt.Errorf("unable to listen on %s: %w", path, err)
 	}
@@ -47,28 +49,41 @@ func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path strin
 	go func() {
 		defer func() {
 			util.LogRecover()
-			l.Close()
+			ipc.Stop()
 		}()
 
-		for {
-			conn, err := l.Accept()
+		for !ipc.stopRequested {
+			conn, err := ipc.listener.Accept()
 			if err != nil {
-				ipc.log.Error().Err(err).Str("path", path).Msg("unable to accept new connection")
-				// FIXME: probably want to continue here for some kinds of errors
-				break
+				if !ipc.stopRequested {
+					ipc.log.Error().Err(err).Str("path", path).Msg("unable to accept new connection")
+				}
+				return
 			}
 
 			ac := &acceptedConn{conn: conn}
 			go ac.handleCommands(ipc)
 		}
-
-		// cleanup (our context was canceled)
-		ipc.conns.Range(func(key, value any) bool {
-			ac := key.(*acceptedConn)
-			ac.conn.Close()
-			return true
-		})
 	}()
 
 	return nil
+}
+
+func (ipc *IPCServer) Stop() error {
+	if ipc.listener == nil {
+		return nil
+	}
+
+	ipc.stopRequested = true
+
+	// cleanup (our context was canceled)
+	ipc.conns.Range(func(key, value any) bool {
+		ac := key.(*acceptedConn)
+		ac.conn.Close()
+		return true
+	})
+
+	l := ipc.listener
+	ipc.listener = nil
+	return l.Close()
 }
