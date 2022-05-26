@@ -13,14 +13,15 @@ type PulsePattern struct {
 
 const DefaultPulseDelay = 25 * time.Millisecond
 
-var _ Pattern = (*PulsePattern)(nil) // ensures we conform to the Pattern interface
+var _ Pattern = (*PulsePattern)(nil)  // ensures we conform to the Pattern interface
+var _ runnable = (*PulsePattern)(nil) // ensures we conform to the runnable interface
 
 func NewPulsePattern() *PulsePattern {
 	p := &PulsePattern{}
 	p.BasePattern = BasePattern{
 		Name:  "pulse",
 		Delay: DefaultPulseDelay,
-		run:   p.run,
+		self:  p,
 	}
 	return p
 }

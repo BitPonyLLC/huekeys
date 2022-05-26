@@ -106,7 +106,14 @@ func atStart(cmd *cobra.Command, _ []string) error {
 	initialized = true
 	pidPath = pidpath.NewPidPath(viper.GetString("pidpath"), 0666)
 	ipcServer = &ipc.IPCServer{}
-	return setupLogging(cmd)
+
+	err := setupLogging(cmd)
+	if err != nil {
+		return err
+	}
+
+	log.Debug().Str("file", viper.ConfigFileUsed()).Msg("config")
+	return nil
 }
 
 func atExit() {

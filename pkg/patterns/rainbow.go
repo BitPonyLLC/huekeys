@@ -12,14 +12,15 @@ type RainbowPattern struct {
 
 const DefaultRainbowDelay = 1 * time.Nanosecond
 
-var _ Pattern = (*RainbowPattern)(nil) // ensures we conform to the Pattern interface
+var _ Pattern = (*RainbowPattern)(nil)  // ensures we conform to the Pattern interface
+var _ runnable = (*RainbowPattern)(nil) // ensures we conform to the runnable interface
 
 func NewRainbowPattern() *RainbowPattern {
 	p := &RainbowPattern{}
 	p.BasePattern = BasePattern{
 		Name:  "rainbow",
 		Delay: DefaultRainbowDelay,
-		run:   p.run,
+		self:  p,
 	}
 	return p
 }

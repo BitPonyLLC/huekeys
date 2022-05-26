@@ -15,13 +15,18 @@ type Pattern interface {
 	String() string
 }
 
+type runnable interface {
+	Pattern
+	run() error
+}
+
 type BasePattern struct {
 	Name  string
 	Delay time.Duration
 
-	run func() error
-	ctx context.Context
-	log *zerolog.Logger
+	self runnable // used to ensure access to the real (child) pattern type
+	ctx  context.Context
+	log  *zerolog.Logger
 
 	stopRequested bool
 }
@@ -45,14 +50,14 @@ func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 		cancel()
 	}
 	p.ctx, cancel = context.WithCancel(parent)
-	running = p
+	running = p.self
 	mutex.Unlock()
 
 	plog := log.With().Str("pattern", p.Name).Logger()
 	p.log = &plog
 	p.log.Info().Msg("started")
 	defer p.log.Info().Msg("stopped")
-	return p.run() // this will crash if a pattern is defined and doesn't set it
+	return runnable(p.self).run()
 }
 
 func (p *BasePattern) String() string {
@@ -61,6 +66,9 @@ func (p *BasePattern) String() string {
 	}
 	return fmt.Sprintf("%s delay=%s", p.Name, p.Delay)
 }
+
+//--------------------------------------------------------------------------------
+// private
 
 func (p *BasePattern) cancelableSleep() bool {
 	wake := time.NewTimer(p.Delay)

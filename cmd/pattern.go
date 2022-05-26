@@ -67,7 +67,7 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		Short: short,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			if err := pidPath.CheckAndSet(); err != nil {
-				if pidPath.IsOtherRunning() {
+				if pidPath.IsRunning() {
 					log.Debug().Err(err).Msg("ignoring")
 					return nil
 				}
@@ -82,7 +82,7 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if pidPath.IsOtherRunning() {
+			if pidPath.IsRunning() && !pidPath.IsOurs() {
 				return sendViaIPC(cmd)
 			}
 			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")

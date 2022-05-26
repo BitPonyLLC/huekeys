@@ -12,14 +12,15 @@ type RandomPattern struct {
 
 const DefaultRandomDelay = 1 * time.Second
 
-var _ Pattern = (*RandomPattern)(nil) // ensures we conform to the Pattern interface
+var _ Pattern = (*RandomPattern)(nil)  // ensures we conform to the Pattern interface
+var _ runnable = (*RandomPattern)(nil) // ensures we conform to the runnable interface
 
 func NewRandomPattern() *RandomPattern {
 	p := &RandomPattern{}
 	p.BasePattern = BasePattern{
 		Name:  "random",
 		Delay: DefaultRandomDelay,
-		run:   p.run,
+		self:  p,
 	}
 	return p
 }

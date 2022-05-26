@@ -29,7 +29,8 @@ type TypingPattern struct {
 const DefaultTypingDelay = 300 * time.Millisecond
 const DefaultIdlePeriod = 30 * time.Second
 
-var _ Pattern = (*TypingPattern)(nil) // ensures we conform to the Pattern interface
+var _ Pattern = (*TypingPattern)(nil)  // ensures we conform to the Pattern interface
+var _ runnable = (*TypingPattern)(nil) // ensures we conform to the runnable interface
 
 func NewTypingPattern() *TypingPattern {
 	p := &TypingPattern{
@@ -38,7 +39,7 @@ func NewTypingPattern() *TypingPattern {
 	p.BasePattern = BasePattern{
 		Name:  "typing",
 		Delay: DefaultTypingDelay,
-		run:   p.run,
+		self:  p,
 	}
 	return p
 }
@@ -46,7 +47,7 @@ func NewTypingPattern() *TypingPattern {
 func (p *TypingPattern) String() string {
 	str := p.BasePattern.String()
 	if p.IdlePattern != nil {
-		str += fmt.Sprintf("idle=[%s]", p.IdlePattern)
+		str += fmt.Sprintf(" idle=[%s]", p.IdlePattern)
 	}
 	return str
 }
@@ -150,7 +151,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 				bp.ctx = cancelCtx
 				bp.log = &ilog
 				// using the private runner otherwise, we'll get canceled! ;)
-				bp.run()
+				runnable(bp.self).run()
 			}()
 		}
 	}

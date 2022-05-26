@@ -14,8 +14,6 @@ import (
 )
 
 type IPCServer struct {
-	LastCmd string
-
 	ctx           context.Context
 	log           *zerolog.Logger
 	cmd           *cobra.Command
