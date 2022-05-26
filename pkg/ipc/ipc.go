@@ -14,58 +14,76 @@ import (
 )
 
 type IPCServer struct {
-	Ctx  context.Context
-	Path string
-	Cmd  *cobra.Command
-	Log  *zerolog.Logger
-
-	conns sync.Map
+	ctx           context.Context
+	log           *zerolog.Logger
+	cmd           *cobra.Command
+	listener      net.Listener
+	conns         sync.Map
+	stopRequested bool
 }
 
-func (ipc *IPCServer) Start() error {
-	err := os.Remove(ipc.Path)
+func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path string, cmd *cobra.Command) error {
+	err := os.Remove(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("unable to remove %s: %w", ipc.Path, err)
+			return fmt.Errorf("unable to remove %s: %w", path, err)
 		}
 	}
 
 	var lc net.ListenConfig
-	l, err := lc.Listen(ipc.Ctx, "unix", ipc.Path)
+	ipc.listener, err = lc.Listen(ctx, "unix", path)
 	if err != nil {
-		return fmt.Errorf("unable to listen on %s: %w", ipc.Path, err)
+		return fmt.Errorf("unable to listen on %s: %w", path, err)
 	}
+
+	// let anyone talk to us
+	err = os.Chmod(path, 0666)
+	if err != nil {
+		return fmt.Errorf("unable to change permissions to %s: %w", path, err)
+	}
+
+	ipc.ctx = ctx
+	ipc.log = log
+	ipc.cmd = cmd
 
 	go func() {
 		defer func() {
 			util.LogRecover()
-			l.Close()
+			ipc.Stop()
 		}()
 
-		for {
-			conn, err := l.Accept()
+		for !ipc.stopRequested {
+			conn, err := ipc.listener.Accept()
 			if err != nil {
-				ipc.Log.Error().Err(err).Str("path", ipc.Path).Msg("unable to accept new connection")
-				// FIXME: probably want to continue here for some kinds of errors
-				break
+				if !ipc.stopRequested {
+					ipc.log.Error().Err(err).Str("path", path).Msg("unable to accept new connection")
+				}
+				return
 			}
 
-			ac := &acceptedConn{
-				parent: ipc,
-				conn:   conn,
-				cmd:    *ipc.Cmd, // COPY the original command to allow multiple client usages
-			}
-
-			go ac.handleCommands()
+			ac := &acceptedConn{conn: conn}
+			go ac.handleCommands(ipc)
 		}
-
-		// cleanup (our context was canceled)
-		ipc.conns.Range(func(key, value any) bool {
-			ac := key.(*acceptedConn)
-			ac.conn.Close()
-			return true
-		})
 	}()
 
 	return nil
+}
+
+func (ipc *IPCServer) Stop() error {
+	if ipc.listener == nil {
+		return nil
+	}
+
+	ipc.stopRequested = true
+
+	// cleanup (our context was canceled)
+	ipc.conns.Range(func(key, value any) bool {
+		ac := key.(*acceptedConn)
+		ac.conn.Close()
+		return true
+	})
+
+	l := ipc.listener
+	ipc.listener = nil
+	return l.Close()
 }

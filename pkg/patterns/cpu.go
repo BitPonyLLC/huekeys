@@ -18,14 +18,15 @@ type CPUPattern struct {
 
 const DefaultCPUDelay = 1 * time.Second
 
-var _ Pattern = (*CPUPattern)(nil) // ensures we conform to the Pattern interface
+var _ Pattern = (*CPUPattern)(nil)  // ensures we conform to the Pattern interface
+var _ runnable = (*CPUPattern)(nil) // ensures we conform to the runnable interface
 
 func NewCPUPattern() *CPUPattern {
 	p := &CPUPattern{}
 	p.BasePattern = BasePattern{
 		Name:  "cpu",
 		Delay: DefaultCPUDelay,
-		run:   p.run,
+		self:  p,
 	}
 	return p
 }

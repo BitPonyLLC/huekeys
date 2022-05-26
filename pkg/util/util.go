@@ -1,6 +1,9 @@
 package util
 
 import (
+	"fmt"
+	"syscall"
+
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -13,4 +16,17 @@ func LogRecover() {
 		err := errors.Wrap(r.(error), "recovered error")
 		log.Error().Stack().Err(err).Msg("")
 	}
+}
+
+// BeNice lets a Unix process reduce its own execution priority to avoid impacting other processes.
+// Positive values have lower privilege (are nicer) while negative values have a higher privilege (are MEAN!).
+func BeNice(priority int) error {
+	pid := syscall.Getpid()
+
+	err := syscall.Setpriority(syscall.PRIO_PROCESS, pid, priority)
+	if err != nil {
+		return fmt.Errorf("unable to set nice level %d: %w", priority, err)
+	}
+
+	return nil
 }

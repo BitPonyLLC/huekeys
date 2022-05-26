@@ -12,7 +12,9 @@ import (
 	"syscall"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
+	"github.com/BitPonyLLC/huekeys/pkg/ipc"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
+	"github.com/BitPonyLLC/huekeys/pkg/pidpath"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -25,33 +27,30 @@ var failureCode = 1
 var dumpConfig = false
 var logF *os.File
 
+var cancelFunc func()
+var pidPath *pidpath.PidPath
+var ipcServer *ipc.IPCServer
+
 var rootCmd = &cobra.Command{
-	Use:          buildinfo.Name,
-	Short:        buildinfo.Description,
-	Version:      buildinfo.All,
-	SilenceUsage: true,
-	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		err := keyboard.LoadEmbeddedColors()
-		if err != nil {
-			return fail(2, err)
-		}
-		return setupLogging(cmd)
-	},
+	Use:               buildinfo.Name,
+	Short:             buildinfo.Description,
+	Version:           buildinfo.All,
+	SilenceUsage:      true,
+	PersistentPreRunE: atStart,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		if dumpConfig {
 			return showConfig()
 		}
 		return cmd.Help()
 	},
-	PersistentPostRun: func(_ *cobra.Command, _ []string) {
-		if logF != nil {
-			logF.Close()
-		}
-	},
 }
 
 // Execute is the primary entrypoint for this CLI
-func Execute() {
+func Execute() int {
+	defer atExit()
+
+	rootCmd.SetOut(os.Stdout) // default is stderr
+
 	viper.SetConfigName("." + buildinfo.Name)
 	viper.SetConfigType("toml")
 	viper.AddConfigPath("$HOME")
@@ -60,11 +59,15 @@ func Execute() {
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			rootCmd.PrintErrln("Unable to read config file:", err)
-			os.Exit(1)
+			return 1
 		}
 	}
 
-	rootCmd.SetOut(os.Stdout) // default is stderr
+	err = keyboard.LoadEmbeddedColors()
+	if err != nil {
+		rootCmd.PrintErrln("Unable to load colors:", err)
+		return 2
+	}
 
 	rootCmd.PersistentFlags().BoolVar(&dumpConfig, "dump-config", dumpConfig, "dump configuration to stdout")
 
@@ -74,7 +77,8 @@ func Execute() {
 	rootCmd.PersistentFlags().String("log-dst", "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
 	viper.BindPFlag("log-dst", rootCmd.PersistentFlags().Lookup("log-dst"))
 
-	cancelCtx, cancelFunc := context.WithCancel(context.Background())
+	var cancelCtx context.Context
+	cancelCtx, cancelFunc = context.WithCancel(context.Background())
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -87,10 +91,45 @@ func Execute() {
 	err = rootCmd.ExecuteContext(cancelCtx)
 	if err != nil {
 		log.Error().Err(err).Msg("command failed")
-		os.Exit(failureCode)
+		cancelFunc()
+		return failureCode
 	}
 
-	os.Exit(0)
+	return 0
+}
+
+var initialized = false
+
+func atStart(cmd *cobra.Command, _ []string) error {
+	if initialized {
+		return nil
+	}
+
+	initialized = true
+	pidPath = pidpath.NewPidPath(viper.GetString("pidpath"), 0666)
+	ipcServer = &ipc.IPCServer{}
+
+	err := setupLogging(cmd)
+	if err != nil {
+		return err
+	}
+
+	log.Debug().Str("file", viper.ConfigFileUsed()).Msg("config")
+	return nil
+}
+
+func atExit() {
+	if ipcServer != nil {
+		ipcServer.Stop()
+	}
+
+	if logF != nil {
+		logF.Close()
+	}
+
+	if pidPath != nil {
+		pidPath.Release()
+	}
 }
 
 func showConfig() error {

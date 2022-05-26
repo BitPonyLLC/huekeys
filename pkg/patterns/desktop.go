@@ -14,6 +14,7 @@ import (
 	"github.com/BitPonyLLC/huekeys/internal/image_matcher"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/BitPonyLLC/huekeys/pkg/util"
+
 	"github.com/rs/zerolog"
 )
 
@@ -27,12 +28,13 @@ func NewDesktopPattern() *DesktopPattern {
 	p := &DesktopPattern{}
 	p.BasePattern = BasePattern{
 		Name: "desktop",
-		run:  p.run,
+		self: p,
 	}
 	return p
 }
 
-var _ Pattern = (*DesktopPattern)(nil) // ensures we conform to the Pattern interface
+var _ Pattern = (*DesktopPattern)(nil)  // ensures we conform to the Pattern interface
+var _ runnable = (*DesktopPattern)(nil) // ensures we conform to the runnable interface
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
 
@@ -57,7 +59,10 @@ func (p *DesktopPattern) run() error {
 		return fmt.Errorf("can't parse picture URI (%s): %w", pictureURIStr, err)
 	}
 
-	p.setColorFrom(pictureURL.Path)
+	err = p.setColorFrom(pictureURL.Path)
+	if err != nil {
+		return err
+	}
 
 	cmd := p.newDesktopSettingCmd("monitor", "background", pictureKey)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
