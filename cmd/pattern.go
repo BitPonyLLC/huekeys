@@ -93,7 +93,10 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 			if err := beNice(priority); err != nil {
 				return fail(12, err)
 			}
-			return startIPCServer(cmd.Context())
+			if _, ok := pattern.(*patterns.WaitPattern); ok {
+				return startIPCServer(cmd.Context())
+			}
+			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if alreadyRunning != nil {
@@ -189,14 +192,8 @@ func beNice(priority int) error {
 var sockPath = filepath.Join(os.TempDir(), buildinfo.Name+".sock")
 
 func startIPCServer(ctx context.Context) error {
-	svr := ipc.IPCServer{
-		Ctx:  ctx,
-		Path: sockPath,
-		Cmd:  rootCmd,
-		Log:  &log.Logger,
-	}
-
-	return svr.Start()
+	svr := ipc.IPCServer{}
+	return svr.Start(ctx, &log.Logger, sockPath, rootCmd)
 }
 
 func sendViaIPC(cmd *cobra.Command) error {

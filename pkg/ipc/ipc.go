@@ -14,33 +14,35 @@ import (
 )
 
 type IPCServer struct {
-	Ctx  context.Context
-	Path string
-	Cmd  *cobra.Command
-	Log  *zerolog.Logger
-
+	ctx   context.Context
+	log   *zerolog.Logger
 	conns sync.Map
+	cmd   *cobra.Command
 }
 
-func (ipc *IPCServer) Start() error {
-	err := os.Remove(ipc.Path)
+func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path string, cmd *cobra.Command) error {
+	err := os.Remove(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("unable to remove %s: %w", ipc.Path, err)
+			return fmt.Errorf("unable to remove %s: %w", path, err)
 		}
 	}
 
 	var lc net.ListenConfig
-	l, err := lc.Listen(ipc.Ctx, "unix", ipc.Path)
+	l, err := lc.Listen(ctx, "unix", path)
 	if err != nil {
-		return fmt.Errorf("unable to listen on %s: %w", ipc.Path, err)
+		return fmt.Errorf("unable to listen on %s: %w", path, err)
 	}
 
 	// let anyone talk to us
-	err = os.Chmod(ipc.Path, 0666)
+	err = os.Chmod(path, 0666)
 	if err != nil {
-		return fmt.Errorf("unable to change permissions to %s: %w", ipc.Path, err)
+		return fmt.Errorf("unable to change permissions to %s: %w", path, err)
 	}
+
+	ipc.ctx = ctx
+	ipc.log = log
+	ipc.cmd = cmd
 
 	go func() {
 		defer func() {
@@ -51,18 +53,13 @@ func (ipc *IPCServer) Start() error {
 		for {
 			conn, err := l.Accept()
 			if err != nil {
-				ipc.Log.Error().Err(err).Str("path", ipc.Path).Msg("unable to accept new connection")
+				ipc.log.Error().Err(err).Str("path", path).Msg("unable to accept new connection")
 				// FIXME: probably want to continue here for some kinds of errors
 				break
 			}
 
-			ac := &acceptedConn{
-				parent: ipc,
-				conn:   conn,
-				cmd:    *ipc.Cmd, // COPY the original command to allow multiple client usages
-			}
-
-			go ac.handleCommands()
+			ac := &acceptedConn{conn: conn}
+			go ac.handleCommands(ipc)
 		}
 
 		// cleanup (our context was canceled)

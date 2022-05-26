@@ -12,6 +12,7 @@ type WaitPattern struct {
 
 var _ Pattern = (*WaitPattern)(nil) // ensures we conform to the Pattern interface
 
+// NewWaitPattern creates a special-purpose pattern that does nothing but wait forever.
 func NewWaitPattern() *WaitPattern {
 	return &WaitPattern{BasePattern: BasePattern{Name: "wait"}}
 }
