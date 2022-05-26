@@ -27,6 +27,7 @@ var failureCode = 1
 var dumpConfig = false
 var logF *os.File
 
+var cancelFunc func()
 var pidPath *pidpath.PidPath
 var ipcServer *ipc.IPCServer
 
@@ -76,7 +77,8 @@ func Execute() int {
 	rootCmd.PersistentFlags().String("log-dst", "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
 	viper.BindPFlag("log-dst", rootCmd.PersistentFlags().Lookup("log-dst"))
 
-	cancelCtx, cancelFunc := context.WithCancel(context.Background())
+	var cancelCtx context.Context
+	cancelCtx, cancelFunc = context.WithCancel(context.Background())
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
