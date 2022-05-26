@@ -59,7 +59,10 @@ func (p *DesktopPattern) run() error {
 		return fmt.Errorf("can't parse picture URI (%s): %w", pictureURIStr, err)
 	}
 
-	p.setColorFrom(pictureURL.Path)
+	err = p.setColorFrom(pictureURL.Path)
+	if err != nil {
+		return err
+	}
 
 	cmd := p.newDesktopSettingCmd("monitor", "background", pictureKey)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

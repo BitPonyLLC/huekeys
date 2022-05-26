@@ -151,7 +151,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 				bp.ctx = cancelCtx
 				bp.log = &ilog
 				// using the private runner otherwise, we'll get canceled! ;)
-				runnable(bp.self).run()
+				bp.self.run()
 			}()
 		}
 	}

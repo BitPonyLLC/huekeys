@@ -45,7 +45,7 @@ var rootCmd = &cobra.Command{
 }
 
 // Execute is the primary entrypoint for this CLI
-func Execute() {
+func Execute() int {
 	defer atExit()
 
 	rootCmd.SetOut(os.Stdout) // default is stderr
@@ -58,14 +58,14 @@ func Execute() {
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			rootCmd.PrintErrln("Unable to read config file:", err)
-			os.Exit(1)
+			return 1
 		}
 	}
 
 	err = keyboard.LoadEmbeddedColors()
 	if err != nil {
 		rootCmd.PrintErrln("Unable to load colors:", err)
-		os.Exit(2)
+		return 2
 	}
 
 	rootCmd.PersistentFlags().BoolVar(&dumpConfig, "dump-config", dumpConfig, "dump configuration to stdout")
@@ -90,10 +90,10 @@ func Execute() {
 	if err != nil {
 		log.Error().Err(err).Msg("command failed")
 		cancelFunc()
-		os.Exit(failureCode)
+		return failureCode
 	}
 
-	os.Exit(0)
+	return 0
 }
 
 var initialized = false

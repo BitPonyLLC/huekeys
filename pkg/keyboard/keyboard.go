@@ -174,15 +174,13 @@ func ColorFileHandler(color string) error {
 		p := fmt.Sprintf("%v/%v", sys.Path, file)
 		fh, err := os.OpenFile(p, os.O_RDWR, 0755)
 		if err != nil {
-			log.Warn().Err(err).Str("path", sys.Path).Msg("can't open")
-			continue
+			return fmt.Errorf("can't open %s: %w", sys.Path, err)
 		}
 		defer fh.Close()
 
 		_, err = fh.WriteString(color)
 		if err != nil {
-			log.Warn().Err(err).Str("path", sys.Path).Msg("can't set color")
-			continue
+			return fmt.Errorf("can't write color to %s: %w", sys.Path, err)
 		}
 
 		log.Trace().Str("file", p).Str("color", color).Msg("set")

@@ -57,7 +57,7 @@ func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	p.log = &plog
 	p.log.Info().Msg("started")
 	defer p.log.Info().Msg("stopped")
-	return runnable(p.self).run()
+	return p.self.run()
 }
 
 func (p *BasePattern) String() string {
