@@ -66,23 +66,19 @@ func init() {
 	waitPatternCmd.Flags().BoolP("menu", "m", false, "show a menu in the system tray")
 	viper.BindPFlag("wait.menu", waitPatternCmd.Flags().Lookup("menu"))
 
-	menuBound := false
 	waitPatternCmd.Args = func(cmd *cobra.Command, _ []string) error {
-		if menuBound {
+		if waitPattern.Menu != nil || !viper.GetBool("wait.menu") {
 			return nil
 		}
-		if viper.GetBool("wait.menu") {
-			menuBound = true
-			waitPattern.Menu = &menu.Menu{Cmd: rootCmd}
-			args := []string{}
-			for c := cmd.Parent(); c != rootCmd; c = c.Parent() {
-				args = append([]string{c.Name()}, args...)
-			}
-			for _, cmd := range cmd.Parent().Commands() {
-				c := cmd
-				if c.Name() != "wait" {
-					waitPattern.Menu.Add(c.Name(), append(args, c.Name()))
-				}
+		waitPattern.Menu = &menu.Menu{Cmd: rootCmd}
+		args := []string{}
+		for c := cmd.Parent(); c != rootCmd; c = c.Parent() {
+			args = append([]string{c.Name()}, args...)
+		}
+		for _, cmd := range cmd.Parent().Commands() {
+			c := cmd
+			if c.Name() != "wait" {
+				waitPattern.Menu.Add(c.Name(), append(args, c.Name()))
 			}
 		}
 		return nil

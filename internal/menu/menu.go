@@ -23,6 +23,12 @@ type Menu struct {
 	items []*item
 }
 
+const (
+	quit = iota
+	done
+	end
+)
+
 func (m *Menu) Add(name string, args []string) {
 	menuName := cases.Title(language.English).String(name)
 	sysItem := systray.AddMenuItem(menuName, "")
@@ -46,31 +52,40 @@ func (m *Menu) onReady() {
 		var cancelCtx context.Context
 		var cancelFunc func()
 
+		cases := make([]reflect.SelectCase, len(m.items)+end)
 		for {
-			cases := make([]reflect.SelectCase, len(m.items)+1)
-			cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quitItem.ClickedCh)}
+			// explicit channels to watch
+			cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quitItem.ClickedCh)}
+			cases[done] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.ctx.Done())}
+
+			// dynamic channels based on items added
 			for i, it := range m.items {
 				ch := it.sysItem.ClickedCh
-				cases[i+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
+				cases[i+end] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
 			}
 
-			// index, value, ok := ...
-			// ok will be true if the channel has not been closed.
-			index, _, _ := reflect.Select(cases)
+			// ok will be true if the channel has not been closed
+			index, _, ok := reflect.Select(cases)
 
 			if cancelFunc != nil {
 				// stop the active pattern
 				cancelFunc()
 			}
 
-			if index == 0 {
+			switch index {
+			case quit:
 				systray.Quit()
 				return
+			case done:
+				systray.Quit()
+				return
+			default:
+				if ok {
+					cancelCtx, cancelFunc = context.WithCancel(m.ctx)
+					it := m.items[index-end]
+					go it.run(cancelCtx, m.log, m.Cmd)
+				}
 			}
-
-			cancelCtx, cancelFunc = context.WithCancel(m.ctx)
-			it := m.items[index-1]
-			go it.run(cancelCtx, m.log, m.Cmd)
 		}
 	}()
 }
