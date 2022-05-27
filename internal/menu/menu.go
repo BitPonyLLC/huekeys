@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"reflect"
 
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 	"github.com/getlantern/systray"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -45,47 +46,50 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger) {
 
 func (m *Menu) onReady() {
 	systray.SetIcon(trayIcon)
-
 	quitItem := systray.AddMenuItem("Quit", "Stop operations and exit")
+	go m.listen(quitItem.ClickedCh)
+}
 
-	go func() {
-		var cancelCtx context.Context
-		var cancelFunc func()
+func (m *Menu) listen(quitCh chan struct{}) {
+	defer func() {
+		util.LogRecover()
+		systray.Quit()
+	}()
 
-		cases := make([]reflect.SelectCase, len(m.items)+end)
-		for {
-			// explicit channels to watch
-			cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quitItem.ClickedCh)}
-			cases[done] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.ctx.Done())}
+	var cancelCtx context.Context
+	var cancelFunc func()
 
-			// dynamic channels based on items added
-			for i, it := range m.items {
-				ch := it.sysItem.ClickedCh
-				cases[i+end] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
-			}
+	cases := make([]reflect.SelectCase, len(m.items)+end)
 
-			// ok will be true if the channel has not been closed
-			index, _, ok := reflect.Select(cases)
+	for {
+		// explicit channels
+		cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quitCh)}
+		cases[done] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.ctx.Done())}
 
-			if cancelFunc != nil {
-				// stop the active pattern
-				cancelFunc()
-			}
+		// dynamic channels
+		for i, it := range m.items {
+			ch := it.sysItem.ClickedCh
+			cases[i+end] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
+		}
 
-			switch index {
-			case quit:
-				systray.Quit()
-				return
-			case done:
-				systray.Quit()
-				return
-			default:
-				if ok {
-					cancelCtx, cancelFunc = context.WithCancel(m.ctx)
-					it := m.items[index-end]
-					go it.run(cancelCtx, m.log, m.Cmd)
-				}
+		// wait for one!
+		index, _, ok := reflect.Select(cases)
+
+		if cancelFunc != nil {
+			cancelFunc()
+		}
+
+		switch index {
+		case quit:
+			return
+		case done:
+			return
+		default:
+			if ok {
+				cancelCtx, cancelFunc = context.WithCancel(m.ctx)
+				it := m.items[index-end]
+				go it.run(cancelCtx, m.log, m.Cmd)
 			}
 		}
-	}()
+	}
 }
