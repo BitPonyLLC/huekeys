@@ -114,8 +114,11 @@ func (m *Menu) onReady() {
 }
 
 func (m *Menu) listen(quitCh chan struct{}) {
-	defer util.LogRecover()
-	defer systray.Quit()
+	defer func() {
+		util.LogRecover()
+		m.cli.Send("quit")
+		systray.Quit()
+	}()
 
 	cases := make([]reflect.SelectCase, len(m.items)+end)
 
