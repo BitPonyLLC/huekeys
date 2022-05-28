@@ -23,6 +23,8 @@ const maxErrorMsgLen = 70
 var trayIcon []byte
 
 type Menu struct {
+	PatternName string
+
 	ctx context.Context
 	log *zerolog.Logger
 	cli *ipc.IPCClient
@@ -74,14 +76,27 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 		return err
 	}
 
-	resp, err := m.cli.Send("get")
-	if err != nil {
-		return err
+	var running string
+	if m.PatternName == "" {
+		resp, err := m.cli.Send("get")
+		if err != nil {
+			return err
+		}
+
+		match := getRunningRE.FindStringSubmatch(resp)
+		if len(match) == 2 {
+			running = match[1]
+		}
+	} else {
+		_, err := m.cli.Send("run " + m.PatternName)
+		if err != nil {
+			return err
+		}
+
+		running = m.PatternName
 	}
 
-	match := getRunningRE.FindStringSubmatch(resp)
-	if len(match) == 2 {
-		running := match[1]
+	if running != "" {
 		for i, name := range m.names {
 			if name == running {
 				m.checked = m.items[i]

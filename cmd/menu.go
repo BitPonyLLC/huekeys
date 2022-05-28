@@ -14,7 +14,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+var patternName string
+
 func init() {
+	menuCmd.Flags().StringVarP(&patternName, "pattern", "p", patternName, "name of pattern to run at start")
+	viper.BindPFlag("menu.pattern", menuCmd.Flags().Lookup("pattern"))
 	rootCmd.AddCommand(menuCmd)
 }
 
@@ -29,7 +33,7 @@ var menuCmd = &cobra.Command{
 		}
 
 		msg := strings.Join(args, " ")
-		menu := &menu.Menu{}
+		menu := &menu.Menu{PatternName: viper.GetString("menu.pattern")}
 		for _, c := range runCmd.Commands() {
 			if c.Name() != "wait" {
 				menu.Add(c.Name(), msg+" "+c.Name())
@@ -37,6 +41,19 @@ var menuCmd = &cobra.Command{
 		}
 
 		return menu.Show(cmd.Context(), &log.Logger, viper.GetString("sockpath"))
+	},
+	Args: func(cmd *cobra.Command, args []string) error {
+		if patternName == "" {
+			return nil
+		}
+
+		for _, cmd := range runCmd.Commands() {
+			if cmd.Name() == patternName {
+				return nil
+			}
+		}
+
+		return fmt.Errorf("unknown pattern: %s", patternName)
 	},
 }
 
