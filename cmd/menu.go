@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/BitPonyLLC/huekeys/internal/menu"
+
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )

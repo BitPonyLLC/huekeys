@@ -3,7 +3,9 @@ package menu
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -14,7 +16,6 @@ import (
 
 	"github.com/getlantern/systray"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +29,10 @@ type Menu struct {
 	log *zerolog.Logger
 	cli *ipc.IPCClient
 
-	items []*item
+	// not using a map because we want order preserved
+	names   []string
+	items   []*item
+	checked *item
 }
 
 type item struct {
@@ -42,9 +46,14 @@ const (
 	end
 )
 
+var getRunningRE = regexp.MustCompile(`running = (\S+)`)
+
+// Add will create a menu item with the provided name displayed and will send
+// the provided msg over the IPC client.
 func (m *Menu) Add(name string, msg string) {
 	menuName := cases.Title(language.English).String(name)
 	sysItem := systray.AddMenuItemCheckbox(menuName, "", false)
+	m.names = append(m.names, name)
 	m.items = append(m.items, &item{sysItem: sysItem, msg: msg})
 }
 
@@ -56,15 +65,41 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 
 	m.cli = &ipc.IPCClient{}
 	err := m.cli.Connect(sockPath)
-	if err == nil {
-		systray.Run(m.onReady, nil)
+	if err != nil {
+		return err
 	}
 
-	return err
+	resp, err := m.cli.Send("get")
+	if err != nil {
+		return err
+	}
+
+	match := getRunningRE.FindStringSubmatch(resp)
+	if len(match) != 2 {
+		return fmt.Errorf("unable to parse get response: %s", resp)
+	}
+
+	running := match[1]
+	for i, name := range m.names {
+		if name == running {
+			m.checked = m.items[i]
+			m.checked.sysItem.Check()
+			break
+		}
+	}
+
+	if m.checked == nil {
+		m.log.Warn().Str("running", running).Msg("active pattern was not found in menu items")
+		m.checked = m.items[0]
+	}
+
+	systray.Run(m.onReady, nil)
+	return nil
 }
 
 func (m *Menu) onReady() {
 	systray.SetIcon(trayIcon)
+	systray.AddSeparator()
 	quitItem := systray.AddMenuItem("Quit", "Stop operations and exit")
 	go m.listen(quitItem.ClickedCh)
 }
@@ -99,19 +134,19 @@ func (m *Menu) listen(quitCh chan struct{}) {
 				continue
 			}
 
-			for _, i := range m.items {
-				i.sysItem.Uncheck()
-			}
-
 			it := m.items[index-end]
-			log.Debug().Str("cmd", it.msg).Msg("sending")
+			m.log.Debug().Str("cmd", it.msg).Msg("sending")
 
 			resp, err := m.cli.Send(it.msg)
 			if err != nil {
 				// TODO: consider adding a "status" menu item (disabled/unclickable) to indicate problem!
-				log.Error().Err(err).Str("cmd", it.msg).Msg("sending")
+				// modify name element with an exclamation character??
+				// change icon, too!
+				m.log.Error().Err(err).Str("cmd", it.msg).Msg("sending")
 			} else {
+				m.checked.sysItem.Uncheck()
 				it.sysItem.Check()
+				m.checked = it
 			}
 
 			if resp == "" {
@@ -120,9 +155,9 @@ func (m *Menu) listen(quitCh chan struct{}) {
 
 			var ev *zerolog.Event
 			if strings.HasPrefix("ERR:", resp) {
-				ev = log.Error()
+				ev = m.log.Error()
 			} else {
-				ev = log.Debug()
+				ev = m.log.Debug()
 			}
 
 			ev.Str("cmd", it.msg).Str("resp", resp).Msg("received a response")
