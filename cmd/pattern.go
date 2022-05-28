@@ -18,35 +18,30 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 
 	//----------------------------------------
-	addPatternCmd("wait for remote commands", patterns.NewWaitPattern())
-	addPatternCmd("pulse the keyboard brightness up and down", patterns.NewPulsePattern())
-	addPatternCmd("loop through all the colors of the rainbow", patterns.NewRainbowPattern())
-	addPatternCmd("constantly change the color to a random selection", patterns.NewRandomPattern())
-	addPatternCmd("change the color according to CPU utilization (cold to hot)", patterns.NewCPUPattern())
-	addPatternCmd("monitor the desktop picture and change the keyboard color to match", patterns.NewDesktopPattern())
+	addPatternCmd("wait for remote commands", patterns.Get("wait"))
+	addPatternCmd("pulse the keyboard brightness up and down", patterns.Get("pulse"))
+	addPatternCmd("loop through all the colors of the rainbow", patterns.Get("rainbow"))
+	addPatternCmd("constantly change the color to a random selection", patterns.Get("random"))
+	addPatternCmd("change the color according to CPU utilization (cold to hot)", patterns.Get("cpu"))
+	addPatternCmd("monitor the desktop picture and change the keyboard color to match", patterns.Get("desktop"))
 
 	//----------------------------------------
-	typingPattern := patterns.NewTypingPattern()
-	typingPatternCmd := addPatternCmd("change the color according to typing speed (cold to hot)", typingPattern)
+	typingPattern := patterns.Get("typing")
+	typingLabel := typingPattern.GetBase().Name + "."
 
-	typingPatternCmd.Flags().String("input-event-id", typingPattern.InputEventID, "input event ID to monitor")
-	viper.BindPFlag("typing.input-event-id", typingPatternCmd.Flags().Lookup("input-event-id"))
+	typeCmd := addPatternCmd("change the color according to typing speed (cold to hot)", typingPattern)
 
-	typingPatternCmd.Flags().Bool("all-keys", typingPattern.CountAllKeys, "count any key pressed instead of only those that are considered \"printable\"")
-	viper.BindPFlag("typing.all-keys", typingPatternCmd.Flags().Lookup("all-keys"))
+	typeCmd.Flags().String(patterns.InputEventIDLabel, "", "input event ID to monitor")
+	viper.BindPFlag(typingLabel+patterns.InputEventIDLabel, typeCmd.Flags().Lookup(patterns.InputEventIDLabel))
 
-	typingPatternCmd.Flags().StringP("idle", "i", "", "name of pattern to run while keyboard is idle for more than the idle period")
-	viper.BindPFlag("typing.idle", typingPatternCmd.Flags().Lookup("idle"))
+	typeCmd.Flags().Bool(patterns.AllKeysLabel, false, "count any key pressed instead of only those that are considered \"printable\"")
+	viper.BindPFlag(typingLabel+patterns.AllKeysLabel, typeCmd.Flags().Lookup(patterns.AllKeysLabel))
 
-	typingPatternCmd.Flags().DurationP("idle-period", "p", typingPattern.IdlePeriod, "amount of idle time to wait before starting the idle pattern")
-	viper.BindPFlag("typing.idle-period", typingPatternCmd.Flags().Lookup("idle-period"))
+	typeCmd.Flags().StringP(patterns.IdleLabel, "i", "", "name of pattern to run while keyboard is idle for more than the idle period")
+	viper.BindPFlag(typingLabel+patterns.IdleLabel, typeCmd.Flags().Lookup(patterns.IdleLabel))
 
-	typingPatternCmd.Args = func(cmd *cobra.Command, _ []string) (err error) {
-		typingPattern.InputEventID = viper.GetString("typing.input-event-id")
-		typingPattern.CountAllKeys = viper.GetBool("typing.all-keys")
-		typingPattern.IdlePattern, err = getIdlePattern(cmd, viper.GetString("typing.idle"))
-		return
-	}
+	typeCmd.Flags().DurationP(patterns.IdlePeriodLabel, "p", patterns.DefaultIdlePeriod, "amount of idle time to wait before starting the idle pattern")
+	viper.BindPFlag(typingLabel+patterns.IdlePeriodLabel, typeCmd.Flags().Lookup(patterns.IdlePeriodLabel))
 }
 
 func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
@@ -79,36 +74,17 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 			if pidPath.IsRunning() && !pidPath.IsOurs() {
 				return sendViaIPC(cmd)
 			}
-			basePattern.Delay = viper.GetDuration(basePattern.Name + ".delay")
 			return pattern.Run(cmd.Context(), &log.Logger)
 		},
 	}
 
-	if basePattern.Delay != 0 {
-		cmd.Flags().DurationP("delay", "d", basePattern.Delay,
+	defaultDelay := pattern.GetDefaultDelay()
+	if defaultDelay != 0 {
+		cmd.Flags().DurationP("delay", "d", defaultDelay,
 			"the amount of time to wait between updates (units: ns, us, ms, s, m, h)")
 		viper.BindPFlag(basePattern.Name+".delay", cmd.Flags().Lookup("delay"))
 	}
 
 	runCmd.AddCommand(cmd)
 	return cmd
-}
-
-func getIdlePattern(cmd *cobra.Command, patternName string) (patterns.Pattern, error) {
-	switch patternName {
-	case "":
-		return nil, nil
-	case "pulse":
-		return patterns.NewPulsePattern(), nil
-	case "rainbow":
-		return patterns.NewRainbowPattern(), nil
-	case "random":
-		return patterns.NewRandomPattern(), nil
-	case "cpu":
-		return patterns.NewCPUPattern(), nil
-	case "desktop":
-		return patterns.NewDesktopPattern(), nil
-	default:
-		return nil, fail(13, "unknown pattern: %s", patternName)
-	}
 }

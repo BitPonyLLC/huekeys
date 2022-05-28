@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/EdlinOrg/prominentcolor v1.0.0
+	github.com/fsnotify/fsnotify v1.5.4
 	github.com/getlantern/systray v1.2.1
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/pkg/errors v0.9.1
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/getlantern/context v0.0.0-20220418194847-3d5e7a086201 // indirect
 	github.com/getlantern/errors v1.0.1 // indirect
 	github.com/getlantern/golog v0.0.0-20211223150227-d4d95a44d873 // indirect
@@ -47,5 +47,5 @@ require (
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

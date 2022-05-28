@@ -56,7 +56,7 @@ func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path strin
 			conn, err := ipc.listener.Accept()
 			if err != nil {
 				if !ipc.stopRequested {
-					ipc.log.Error().Err(err).Str("path", path).Msg("unable to accept new connection")
+					ipc.log.Err(err).Str("path", path).Msg("unable to accept new connection")
 				}
 				return
 			}

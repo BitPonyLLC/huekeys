@@ -163,7 +163,7 @@ func (m *Menu) listen(quitCh chan struct{}) {
 				continue // ignore
 			case errMsg:
 				m.clearErr()
-				continue // ignore
+				continue
 			default:
 				m.log.Fatal().Int("index", index).Msg("missing channel handler")
 				return
@@ -227,7 +227,7 @@ func (m *Menu) showErr(err error, index int, it *item) {
 		m.clearErr()
 	}
 
-	m.log.Error().Err(err).Str("cmd", it.msg).Msg("sending")
+	m.log.Err(err).Str("cmd", it.msg).Msg("sending")
 	m.errIndex = index
 	name := m.names[index]
 	it.sysItem.SetTitle("❌ " + title(name))

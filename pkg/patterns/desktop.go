@@ -24,17 +24,12 @@ type DesktopPattern struct {
 	backgroundProcess *os.Process
 }
 
-func NewDesktopPattern() *DesktopPattern {
-	p := &DesktopPattern{}
-	p.BasePattern = BasePattern{
-		Name: "desktop",
-		self: p,
-	}
-	return p
-}
-
 var _ Pattern = (*DesktopPattern)(nil)  // ensures we conform to the Pattern interface
 var _ runnable = (*DesktopPattern)(nil) // ensures we conform to the runnable interface
+
+func init() {
+	register("desktop", &DesktopPattern{}, 0)
+}
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
 
@@ -140,7 +135,7 @@ func (p *DesktopPattern) getDesktopSetting(group, key string) (string, error) {
 	// TODO: consider using D-Bus directly instead of gsettings...
 	val, err := p.newDesktopSettingCmd("get", group, key).Output()
 	if err != nil {
-		p.log.Error().Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
+		p.log.Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
 		return "", err
 	}
 
@@ -170,7 +165,7 @@ func (p *DesktopPattern) stopDesktopBackgroundMonitor() {
 		p.stopRequested = true
 		err := syscall.Kill(-proc.Pid, syscall.SIGTERM)
 		if err != nil {
-			p.log.Error().Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
+			p.log.Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
 		}
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/BitPonyLLC/huekeys/pkg/pidpath"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog/pkgerrors"
@@ -64,6 +65,18 @@ func Execute() int {
 		}
 	}
 
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		confLogLevel := viper.GetString("log-level")
+		level, err := zerolog.ParseLevel(confLogLevel)
+		if err != nil {
+			log.Err(err).Str("level", confLogLevel).Msg("unable to parse new log level")
+		} else {
+			zerolog.SetGlobalLevel(level)
+		}
+	})
+
+	viper.WatchConfig()
+
 	err = keyboard.LoadEmbeddedColors()
 	if err != nil {
 		rootCmd.PrintErrln("Unable to load colors:", err)
@@ -102,7 +115,7 @@ func Execute() int {
 
 	err = rootCmd.ExecuteContext(cancelCtx)
 	if err != nil {
-		log.Error().Err(err).Msg("command failed")
+		log.Err(err).Msg("command failed")
 		cancelFunc()
 		return failureCode
 	}
