@@ -9,6 +9,7 @@ import (
 	"log/syslog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
@@ -76,6 +77,17 @@ func Execute() int {
 
 	rootCmd.PersistentFlags().String("log-dst", "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
 	viper.BindPFlag("log-dst", rootCmd.PersistentFlags().Lookup("log-dst"))
+
+	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.Name+".pid")
+	rootCmd.PersistentFlags().String("pidpath", defaultPidPath, "pathname of the pidfile")
+	viper.BindPFlag("pidpath", rootCmd.PersistentFlags().Lookup("pidpath"))
+
+	defaultSockPath := filepath.Join(os.TempDir(), buildinfo.Name+".sock")
+	rootCmd.PersistentFlags().String("sockpath", defaultSockPath, "pathname of the sockfile")
+	viper.BindPFlag("sockpath", rootCmd.PersistentFlags().Lookup("sockpath"))
+
+	rootCmd.PersistentFlags().Int("nice", 10, "the priority level of the process")
+	viper.BindPFlag("nice", rootCmd.PersistentFlags().Lookup("nice"))
 
 	var cancelCtx context.Context
 	cancelCtx, cancelFunc = context.WithCancel(context.Background())

@@ -2,8 +2,10 @@ package ipc
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
+	"syscall"
 	"time"
 )
 
@@ -24,8 +26,19 @@ func (ipc *IPCClient) Connect(path string) error {
 }
 
 func (ipc *IPCClient) Send(msg string) (string, error) {
+	if ipc.conn == nil {
+		err := ipc.Connect(ipc.path)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	_, err := ipc.conn.Write([]byte(msg + "\n"))
 	if err != nil {
+		if errors.Is(err, syscall.EPIPE) {
+			ipc.conn = nil // server is gone: attempt reconnect on next message
+		}
+
 		return "", fmt.Errorf("unable to send message to %s: %w", ipc.path, err)
 	}
 
