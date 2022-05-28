@@ -19,7 +19,7 @@ func NewWaitPattern() *WaitPattern {
 
 // SPECIAL CASE!! This _overrides_ BasePattern.Run() and will hang forever,
 //                waiting for the parent context to interrupt.
-func (p *WaitPattern) Run(parent context.Context, log *zerolog.Logger) error {
+func (p *WaitPattern) Run(parent context.Context, _ *zerolog.Logger) error {
 	<-parent.Done()
 	return nil
 }
