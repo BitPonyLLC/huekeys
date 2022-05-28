@@ -4,13 +4,18 @@ import (
 	"context"
 	_ "embed"
 	"reflect"
+	"strings"
 
-	"github.com/BitPonyLLC/huekeys/pkg/util"
-	"github.com/getlantern/systray"
-	"github.com/rs/zerolog"
-	"github.com/spf13/cobra"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/BitPonyLLC/huekeys/pkg/ipc"
+	"github.com/BitPonyLLC/huekeys/pkg/util"
+
+	"github.com/getlantern/systray"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 )
 
 //go:embed tray_icon.png
@@ -19,9 +24,16 @@ var trayIcon []byte
 type Menu struct {
 	Cmd *cobra.Command
 
-	ctx   context.Context
-	log   *zerolog.Logger
+	ctx context.Context
+	log *zerolog.Logger
+	cli *ipc.IPCClient
+
 	items []*item
+}
+
+type item struct {
+	sysItem *systray.MenuItem
+	msg     string
 }
 
 const (
@@ -30,18 +42,25 @@ const (
 	end
 )
 
-func (m *Menu) Add(name string, args []string) {
+func (m *Menu) Add(name string, msg string) {
 	menuName := cases.Title(language.English).String(name)
-	sysItem := systray.AddMenuItem(menuName, "")
-	m.items = append(m.items, &item{sysItem: sysItem, args: args})
+	sysItem := systray.AddMenuItemCheckbox(menuName, "", false)
+	m.items = append(m.items, &item{sysItem: sysItem, msg: msg})
 }
 
 // Show will display the menu in the system tray and block until quit or parent
 // is canceled.
-func (m *Menu) Show(ctx context.Context, log *zerolog.Logger) {
+func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) error {
 	m.ctx = ctx
 	m.log = log
-	systray.Run(m.onReady, nil)
+
+	m.cli = &ipc.IPCClient{}
+	err := m.cli.Connect(sockPath)
+	if err == nil {
+		systray.Run(m.onReady, nil)
+	}
+
+	return err
 }
 
 func (m *Menu) onReady() {
@@ -51,13 +70,8 @@ func (m *Menu) onReady() {
 }
 
 func (m *Menu) listen(quitCh chan struct{}) {
-	defer func() {
-		util.LogRecover()
-		systray.Quit()
-	}()
-
-	var cancelCtx context.Context
-	var cancelFunc func()
+	defer util.LogRecover()
+	defer systray.Quit()
 
 	cases := make([]reflect.SelectCase, len(m.items)+end)
 
@@ -75,21 +89,43 @@ func (m *Menu) listen(quitCh chan struct{}) {
 		// wait for one!
 		index, _, ok := reflect.Select(cases)
 
-		if cancelFunc != nil {
-			cancelFunc()
-		}
-
 		switch index {
 		case quit:
 			return
 		case done:
 			return
 		default:
-			if ok {
-				cancelCtx, cancelFunc = context.WithCancel(m.ctx)
-				it := m.items[index-end]
-				go it.run(cancelCtx, m.log, m.Cmd)
+			if !ok {
+				continue
 			}
+
+			for _, i := range m.items {
+				i.sysItem.Uncheck()
+			}
+
+			it := m.items[index-end]
+			log.Debug().Str("cmd", it.msg).Msg("sending")
+
+			resp, err := m.cli.Send(it.msg)
+			if err != nil {
+				// TODO: consider adding a "status" menu item (disabled/unclickable) to indicate problem!
+				log.Error().Err(err).Str("cmd", it.msg).Msg("sending")
+			} else {
+				it.sysItem.Check()
+			}
+
+			if resp == "" {
+				continue
+			}
+
+			var ev *zerolog.Event
+			if strings.HasPrefix("ERR:", resp) {
+				ev = log.Error()
+			} else {
+				ev = log.Debug()
+			}
+
+			ev.Str("cmd", it.msg).Str("resp", resp).Msg("received a response")
 		}
 	}
 }

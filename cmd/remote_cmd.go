@@ -15,8 +15,6 @@ import (
 var sockPath = filepath.Join(os.TempDir(), buildinfo.Name+".sock")
 
 func sendViaIPC(cmd *cobra.Command) error {
-	log.Debug().Int("pid", pidPath.Getpid()).Msg("sending command to running process")
-
 	cli := &ipc.IPCClient{}
 	err := cli.Connect(sockPath)
 	if err != nil {
@@ -25,6 +23,8 @@ func sendViaIPC(cmd *cobra.Command) error {
 	defer cli.Close()
 
 	msg := strings.Join(os.Args[1:], " ")
+	log.Debug().Int("pid", pidPath.Getpid()).Str("cmd", msg).Msg("sending")
+
 	resp, err := cli.Send(msg)
 	if err != nil {
 		return err
