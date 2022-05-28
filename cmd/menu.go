@@ -11,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() {
@@ -18,15 +19,9 @@ func init() {
 }
 
 var menuCmd = &cobra.Command{
-	Use:   "menu",
-	Short: "Display a menu in the system tray",
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if os.Getuid() == 0 {
-			return fmt.Errorf("refusing to run as root")
-		}
-
-		return ensureWaitRunning()
-	},
+	Use:     "menu",
+	Short:   "Display a menu in the system tray",
+	PreRunE: ensureWaitRunning,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		args := []string{}
 		for c := runCmd; c != rootCmd; c = c.Parent() {
@@ -41,11 +36,11 @@ var menuCmd = &cobra.Command{
 			}
 		}
 
-		return menu.Show(cmd.Context(), &log.Logger, sockPath)
+		return menu.Show(cmd.Context(), &log.Logger, viper.GetString("sockpath"))
 	},
 }
 
-func ensureWaitRunning() error {
+func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 	if !pidPath.IsOurs() && pidPath.IsRunning() {
 		// wait is already executing in the background
 		return nil
@@ -63,6 +58,7 @@ func ensureWaitRunning() error {
 	}
 
 	// wait a second for socket to be ready...
+	sockPath := viper.GetString("sockpath")
 	for i := 0; i < 10; i += 1 {
 		time.Sleep(50 * time.Millisecond)
 		_, err := os.Stat(sockPath)

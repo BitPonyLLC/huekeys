@@ -1,10 +1,6 @@
 package cmd
 
 import (
-	"os"
-	"path/filepath"
-
-	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/pkg/patterns"
 	"github.com/BitPonyLLC/huekeys/pkg/util"
 
@@ -20,13 +16,6 @@ var runCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(runCmd)
-
-	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.Name+".pid")
-	runCmd.PersistentFlags().String("pidpath", defaultPidPath, "pathname of the pidfile")
-	viper.BindPFlag("pidpath", runCmd.PersistentFlags().Lookup("pidpath"))
-
-	runCmd.PersistentFlags().Int("nice", 10, "the priority level of the process")
-	viper.BindPFlag("nice", runCmd.PersistentFlags().Lookup("nice"))
 
 	//----------------------------------------
 	addPatternCmd("wait for remote commands", patterns.NewWaitPattern())
@@ -82,7 +71,7 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 				return fail(12, err)
 			}
 			if _, ok := pattern.(*patterns.WaitPattern); ok {
-				return ipcServer.Start(cmd.Context(), &log.Logger, sockPath, rootCmd)
+				return ipcServer.Start(cmd.Context(), &log.Logger, viper.GetString("sockpath"), rootCmd)
 			}
 			return nil
 		},
