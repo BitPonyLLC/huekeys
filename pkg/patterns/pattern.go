@@ -56,15 +56,11 @@ func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	if cancel != nil {
 		cancel()
 	}
-	p.ctx, cancel = context.WithCancel(parent)
+	var cancelCtx context.Context
+	cancelCtx, cancel = context.WithCancel(parent)
 	running = p.self
 	mutex.Unlock()
-
-	plog := log.With().Str("pattern", p.Name).Logger()
-	p.log = &plog
-	p.log.Info().Msg("started")
-	defer p.log.Info().Msg("stopped")
-	return p.self.run()
+	return p.rawRun(cancelCtx, "pattern")
 }
 
 func (p *BasePattern) String() string {
@@ -94,6 +90,15 @@ func register(name string, p Pattern, delay time.Duration) {
 	}
 
 	registeredPatterns[name] = p
+}
+
+func (p *BasePattern) rawRun(parent context.Context, logKey string) error {
+	plog := p.log.With().Str(logKey, p.Name).Logger()
+	p.ctx = parent
+	p.log = &plog
+	p.log.Info().Msg("started")
+	defer p.log.Info().Msg("stopped")
+	return p.self.run()
 }
 
 func (p *BasePattern) cancelableSleep() bool {

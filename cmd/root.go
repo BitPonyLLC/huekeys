@@ -69,7 +69,7 @@ func Execute() int {
 		confLogLevel := viper.GetString("log-level")
 		level, err := zerolog.ParseLevel(confLogLevel)
 		if err != nil {
-			log.Error().Err(err).Str("level", confLogLevel).Msg("unable to parse new log level")
+			log.Err(err).Str("level", confLogLevel).Msg("unable to parse new log level")
 		} else {
 			zerolog.SetGlobalLevel(level)
 		}
@@ -115,7 +115,7 @@ func Execute() int {
 
 	err = rootCmd.ExecuteContext(cancelCtx)
 	if err != nil {
-		log.Error().Err(err).Msg("command failed")
+		log.Err(err).Msg("command failed")
 		cancelFunc()
 		return failureCode
 	}

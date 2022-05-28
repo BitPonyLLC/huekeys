@@ -227,7 +227,7 @@ func (m *Menu) showErr(err error, index int, it *item) {
 		m.clearErr()
 	}
 
-	m.log.Error().Err(err).Str("cmd", it.msg).Msg("sending")
+	m.log.Err(err).Str("cmd", it.msg).Msg("sending")
 	m.errIndex = index
 	name := m.names[index]
 	it.sysItem.SetTitle("❌ " + title(name))

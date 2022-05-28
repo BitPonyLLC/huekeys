@@ -49,7 +49,7 @@ func (ac *acceptedConn) handleCommands(parent *IPCServer) {
 				parent.cmd.SetArgs(args)
 				err = parent.cmd.ExecuteContext(parent.ctx)
 				if err != nil {
-					clog.Error().Err(err).Msg("command failed")
+					clog.Err(err).Msg("command failed")
 				}
 			}()
 		}
@@ -58,12 +58,12 @@ func (ac *acceptedConn) handleCommands(parent *IPCServer) {
 
 		if outWriter.err != nil {
 			done = true
-			clog.Error().Err(outWriter.err).Msg("output writer failed")
+			clog.Err(outWriter.err).Msg("output writer failed")
 		}
 
 		if errWriter.err != nil {
 			done = true
-			clog.Error().Err(errWriter.err).Msg("error writer failed")
+			clog.Err(errWriter.err).Msg("error writer failed")
 		}
 
 		if done {

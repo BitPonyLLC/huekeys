@@ -102,7 +102,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			color := coldHotColors[i]
 			err := keyboard.ColorFileHandler(color)
 			if err != nil {
-				p.log.Error().Err(err).Msg("can't set typing color")
+				p.log.Err(err).Msg("can't set typing color")
 				break
 			}
 
@@ -146,12 +146,11 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			cancelCtx, cancelFunc = context.WithCancel(p.ctx)
 			go func() {
 				defer util.LogRecover()
-				bp := idlePattern.GetBase()
-				ilog := p.log.With().Str("idle", bp.Name).Logger()
-				bp.ctx = cancelCtx
-				bp.log = &ilog
 				// using the private runner otherwise, we'll get canceled! ;)
-				bp.self.run()
+				err := idlePattern.GetBase().rawRun(cancelCtx, "idle")
+				if err != nil {
+					p.log.Err(err).Str("idle", idlePattern.String()).Msg("pattern failed")
+				}
 			}()
 		}
 	}
@@ -169,7 +168,7 @@ func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int
 	for !p.stopRequested {
 		_, err := eventF.Read(buf)
 		if err != nil {
-			p.log.Error().Err(err).Msg("can't read input events device")
+			p.log.Err(err).Msg("can't read input events device")
 			return
 		}
 
