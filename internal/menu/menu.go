@@ -3,7 +3,6 @@ package menu
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
@@ -51,8 +50,7 @@ var getRunningRE = regexp.MustCompile(`running = (\S+)`)
 // Add will create a menu item with the provided name displayed and will send
 // the provided msg over the IPC client.
 func (m *Menu) Add(name string, msg string) {
-	menuName := cases.Title(language.English).String(name)
-	sysItem := systray.AddMenuItemCheckbox(menuName, "", false)
+	sysItem := systray.AddMenuItemCheckbox(title(name), "", false)
 	m.names = append(m.names, name)
 	m.items = append(m.items, &item{sysItem: sysItem, msg: msg})
 }
@@ -75,22 +73,19 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	}
 
 	match := getRunningRE.FindStringSubmatch(resp)
-	if len(match) != 2 {
-		return fmt.Errorf("unable to parse get response: %s", resp)
-	}
-
-	running := match[1]
-	for i, name := range m.names {
-		if name == running {
-			m.checked = m.items[i]
-			m.checked.sysItem.Check()
-			break
+	if len(match) == 2 {
+		running := match[1]
+		for i, name := range m.names {
+			if name == running {
+				m.checked = m.items[i]
+				m.checked.sysItem.Check()
+				break
+			}
 		}
-	}
 
-	if m.checked == nil {
-		m.log.Warn().Str("running", running).Msg("active pattern was not found in menu items")
-		m.checked = m.items[0]
+		if m.checked == nil {
+			m.log.Warn().Str("running", running).Msg("active pattern was not found in menu items")
+		}
 	}
 
 	systray.Run(m.onReady, nil)
@@ -109,6 +104,7 @@ func (m *Menu) listen(quitCh chan struct{}) {
 	defer systray.Quit()
 
 	cases := make([]reflect.SelectCase, len(m.items)+end)
+	errIndex := -1
 
 	for {
 		// explicit channels
@@ -134,17 +130,29 @@ func (m *Menu) listen(quitCh chan struct{}) {
 				continue
 			}
 
-			it := m.items[index-end]
+			if errIndex > -1 {
+				// reset menu item title
+				t := title(m.names[errIndex])
+				m.items[errIndex].sysItem.SetTitle(t)
+			}
+
+			index -= end // adjust for explicit channels
+			it := m.items[index]
 			m.log.Debug().Str("cmd", it.msg).Msg("sending")
 
 			resp, err := m.cli.Send(it.msg)
 			if err != nil {
-				// TODO: consider adding a "status" menu item (disabled/unclickable) to indicate problem!
-				// modify name element with an exclamation character??
-				// change icon, too!
 				m.log.Error().Err(err).Str("cmd", it.msg).Msg("sending")
+				errIndex = index
+				name := m.names[index]
+				it.sysItem.SetTitle("❌ " + title(name))
+				// FIXME: figure out why submenu items don't open on linux (they just flash)
+				// it.sysItem.AddSubMenuItem(err.Error(), "")
 			} else {
-				m.checked.sysItem.Uncheck()
+				if m.checked != nil {
+					m.checked.sysItem.Uncheck()
+				}
+
 				it.sysItem.Check()
 				m.checked = it
 			}
@@ -163,4 +171,8 @@ func (m *Menu) listen(quitCh chan struct{}) {
 			ev.Str("cmd", it.msg).Str("resp", resp).Msg("received a response")
 		}
 	}
+}
+
+func title(name string) string {
+	return cases.Title(language.English).String(name)
 }

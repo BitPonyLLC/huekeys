@@ -16,7 +16,7 @@ func init() {
 var menuCmd = &cobra.Command{
 	Use:   "menu",
 	Short: "Display a menu in the system tray",
-	Run: func(cmd *cobra.Command, _ []string) {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		args := []string{}
 		for c := runCmd; c != rootCmd; c = c.Parent() {
 			args = append([]string{c.Name()}, args...)
@@ -30,6 +30,6 @@ var menuCmd = &cobra.Command{
 			}
 		}
 
-		menu.Show(cmd.Context(), &log.Logger, sockPath)
+		return menu.Show(cmd.Context(), &log.Logger, sockPath)
 	},
 }
