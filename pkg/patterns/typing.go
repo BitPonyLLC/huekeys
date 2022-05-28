@@ -15,53 +15,48 @@ import (
 
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/BitPonyLLC/huekeys/pkg/util"
+
+	"github.com/spf13/viper"
 )
 
 type TypingPattern struct {
 	BasePattern
-
-	InputEventID string
-	CountAllKeys bool
-	IdlePattern  Pattern
-	IdlePeriod   time.Duration
 }
 
-const DefaultTypingDelay = 300 * time.Millisecond
 const DefaultIdlePeriod = 30 * time.Second
+
+const InputEventIDLabel = "input-event-id"
+const AllKeysLabel = "all-keys"
+const IdleLabel = "idle"
+const IdlePeriodLabel = "idle-period"
 
 var _ Pattern = (*TypingPattern)(nil)  // ensures we conform to the Pattern interface
 var _ runnable = (*TypingPattern)(nil) // ensures we conform to the runnable interface
 
-func NewTypingPattern() *TypingPattern {
-	p := &TypingPattern{
-		IdlePeriod: DefaultIdlePeriod,
-	}
-	p.BasePattern = BasePattern{
-		Name:  "typing",
-		Delay: DefaultTypingDelay,
-		self:  p,
-	}
-	return p
-}
-
 func (p *TypingPattern) String() string {
 	str := p.BasePattern.String()
-	if p.IdlePattern != nil {
-		str += fmt.Sprintf(" idle=[%s]", p.IdlePattern)
+	idlePattern := p.getIdlePattern()
+	if idlePattern != nil {
+		str += fmt.Sprintf(" %s=[%s]", IdleLabel, idlePattern)
 	}
 	return str
 }
 
+func init() {
+	register("typing", &TypingPattern{}, 300*time.Millisecond)
+}
+
 func (p *TypingPattern) run() error {
-	if p.InputEventID == "" {
+	inputEventID := viper.GetString(p.Name + InputEventIDLabel)
+	if inputEventID == "" {
 		var err error
-		p.InputEventID, err = getInputEventID()
+		inputEventID, err = lookupInputEventID()
 		if err != nil {
 			return err
 		}
 	}
 
-	eventpath := "/dev/input/" + p.InputEventID
+	eventpath := "/dev/input/" + inputEventID
 	f, err := os.Open(eventpath)
 	if err != nil {
 		return fmt.Errorf("can't open input events device (%s): %w", eventpath, err)
@@ -101,8 +96,9 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			i = colorsLen - 1
 		}
 
-		// don't bother setting the same value
-		if i != lastIndex {
+		// don't bother setting the same value and wait for 2 keypresses to
+		// avoid halting the pattern for control-key sequences
+		if i > 1 && i != lastIndex {
 			color := coldHotColors[i]
 			err := keyboard.ColorFileHandler(color)
 			if err != nil {
@@ -114,7 +110,6 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 		}
 
 		if i > 0 {
-			// wait for 2 keypresses to avoid halting the pattern for control-key sequences
 			if i > 1 {
 				idleAt = nil
 				if cancelFunc != nil {
@@ -139,14 +134,19 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			continue
 		}
 
+		idlePattern := p.getIdlePattern()
+		if idlePattern == nil {
+			continue
+		}
+
 		diff := time.Since(*idleAt)
-		if diff > p.IdlePeriod {
+		if diff > p.getIdlePeriod() {
 			p.log.Debug().Msg("idle")
 			var cancelCtx context.Context
 			cancelCtx, cancelFunc = context.WithCancel(p.ctx)
 			go func() {
 				defer util.LogRecover()
-				bp := p.IdlePattern.GetBase()
+				bp := idlePattern.GetBase()
 				ilog := p.log.With().Str("idle", bp.Name).Logger()
 				bp.ctx = cancelCtx
 				bp.log = &ilog
@@ -185,7 +185,7 @@ func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int
 		if typ == 1 && value == 1 {
 			// in this context, code indicates what key was pressed
 			code := binary.LittleEndian.Uint16(buf[18:20])
-			if p.CountAllKeys || isPrintable(code) {
+			if p.countAllKeys() || isPrintable(code) {
 				// sec := binary.LittleEndian.Uint64(buf[0:8])
 				// usec := binary.LittleEndian.Uint64(buf[8:16])
 				// ts := time.Unix(int64(sec), int64(usec)*1000)
@@ -195,9 +195,32 @@ func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int
 	}
 }
 
+func (p *TypingPattern) countAllKeys() bool {
+	return viper.GetBool(p.Name + "." + AllKeysLabel)
+}
+
+func (p *TypingPattern) getIdlePattern() Pattern {
+	name := viper.GetString(p.Name + "." + IdleLabel)
+	if name == "" {
+		return nil
+	}
+
+	idlePattern := Get(name)
+	if idlePattern == nil {
+		p.log.Error().Str("idle", name).Msg("pattern not found")
+		return nil
+	}
+
+	return idlePattern
+}
+
+func (p *TypingPattern) getIdlePeriod() time.Duration {
+	return viper.GetDuration(p.Name + "." + IdlePeriodLabel)
+}
+
 var keyboardEventRE = regexp.MustCompile(`[= ](event\d+)( |$)`)
 
-func getInputEventID() (string, error) {
+func lookupInputEventID() (string, error) {
 	f, err := os.Open("/proc/bus/input/devices")
 	if err != nil {
 		return "", fmt.Errorf("can't open input devices list: %w", err)

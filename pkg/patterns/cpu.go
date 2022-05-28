@@ -16,19 +16,11 @@ type CPUPattern struct {
 	BasePattern
 }
 
-const DefaultCPUDelay = 1 * time.Second
-
 var _ Pattern = (*CPUPattern)(nil)  // ensures we conform to the Pattern interface
 var _ runnable = (*CPUPattern)(nil) // ensures we conform to the runnable interface
 
-func NewCPUPattern() *CPUPattern {
-	p := &CPUPattern{}
-	p.BasePattern = BasePattern{
-		Name:  "cpu",
-		Delay: DefaultCPUDelay,
-		self:  p,
-	}
-	return p
+func init() {
+	register("cpu", &CPUPattern{}, 1*time.Second)
 }
 
 func (p *CPUPattern) run() error {

@@ -24,17 +24,12 @@ type DesktopPattern struct {
 	backgroundProcess *os.Process
 }
 
-func NewDesktopPattern() *DesktopPattern {
-	p := &DesktopPattern{}
-	p.BasePattern = BasePattern{
-		Name: "desktop",
-		self: p,
-	}
-	return p
-}
-
 var _ Pattern = (*DesktopPattern)(nil)  // ensures we conform to the Pattern interface
 var _ runnable = (*DesktopPattern)(nil) // ensures we conform to the runnable interface
+
+func init() {
+	register("desktop", &DesktopPattern{}, 0)
+}
 
 var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
 

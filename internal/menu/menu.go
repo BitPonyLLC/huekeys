@@ -163,7 +163,7 @@ func (m *Menu) listen(quitCh chan struct{}) {
 				continue // ignore
 			case errMsg:
 				m.clearErr()
-				continue // ignore
+				continue
 			default:
 				m.log.Fatal().Int("index", index).Msg("missing channel handler")
 				return
