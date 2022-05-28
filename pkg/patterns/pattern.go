@@ -60,7 +60,7 @@ func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	cancelCtx, cancel = context.WithCancel(parent)
 	running = p.self
 	mutex.Unlock()
-	return p.rawRun(cancelCtx, "pattern")
+	return p.rawRun(cancelCtx, log, "pattern")
 }
 
 func (p *BasePattern) String() string {
@@ -92,8 +92,8 @@ func register(name string, p Pattern, delay time.Duration) {
 	registeredPatterns[name] = p
 }
 
-func (p *BasePattern) rawRun(parent context.Context, logKey string) error {
-	plog := p.log.With().Str(logKey, p.Name).Logger()
+func (p *BasePattern) rawRun(parent context.Context, log *zerolog.Logger, logKey string) error {
+	plog := log.With().Str(logKey, p.Name).Logger()
 	p.ctx = parent
 	p.log = &plog
 	p.log.Info().Msg("started")

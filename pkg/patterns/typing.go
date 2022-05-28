@@ -147,7 +147,7 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 			go func() {
 				defer util.LogRecover()
 				// using the private runner otherwise, we'll get canceled! ;)
-				err := idlePattern.GetBase().rawRun(cancelCtx, "idle")
+				err := idlePattern.GetBase().rawRun(cancelCtx, p.log, "idle")
 				if err != nil {
 					p.log.Err(err).Str("idle", idlePattern.String()).Msg("pattern failed")
 				}
