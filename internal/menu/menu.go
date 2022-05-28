@@ -15,7 +15,6 @@ import (
 
 	"github.com/getlantern/systray"
 	"github.com/rs/zerolog"
-	"github.com/spf13/cobra"
 )
 
 const maxErrorMsgLen = 70
@@ -24,8 +23,6 @@ const maxErrorMsgLen = 70
 var trayIcon []byte
 
 type Menu struct {
-	Cmd *cobra.Command
-
 	ctx context.Context
 	log *zerolog.Logger
 	cli *ipc.IPCClient
