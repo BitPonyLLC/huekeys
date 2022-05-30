@@ -3,6 +3,7 @@ package menu
 import (
 	"context"
 	_ "embed"
+	"os/exec"
 	"reflect"
 	"strings"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const maxErrorMsgLen = 70
 const brightnessPrefix = "Brightness: "
 const colorPrefix = "Color: "
 
@@ -34,6 +34,10 @@ type Menu struct {
 	names   []string
 	items   []*item
 	checked *item
+
+	errMsg     string
+	brightness string
+	color      string
 
 	errIndex      int
 	errParentItem *systray.MenuItem
@@ -147,14 +151,16 @@ func (m *Menu) listen() {
 			case errParent:
 				// ignore
 			case errMsg:
-				// TODO: copy error into clipboard
+				m.clip(m.errMsg)
 				m.clearErr()
 			case info:
 				m.showErr(m.update())
 			case brightness:
-				// TODO: copy color into clipboard
+				m.clip(m.brightness)
+				m.brightnessItem.Uncheck()
 			case color:
-				// TODO: copy color into clipboard
+				m.clip(m.color)
+				m.colorItem.Uncheck()
 			default:
 				m.log.Fatal().Int("index", index).Msg("missing channel handler")
 				return
@@ -242,8 +248,10 @@ func (m *Menu) update() error {
 				m.log.Warn().Str("running", running).Msg("active pattern was not found in menu items")
 			}
 		case "brightness":
+			m.brightness = val
 			m.brightnessItem.SetTitle(brightnessPrefix + val)
 		case "color":
+			m.color = val
 			m.colorItem.SetTitle(colorPrefix + val)
 		default:
 			m.log.Warn().Str("line", line).Msg("ignoring unknown info from get response")
@@ -253,20 +261,36 @@ func (m *Menu) update() error {
 	return nil
 }
 
-func (m *Menu) clearErr() {
-	if m.errIndex < 0 {
+func (m *Menu) clip(content string) {
+	cmd := exec.Command("xclip", "-sel", "clip", "-i")
+	writer, err := cmd.StdinPipe()
+	if err != nil {
+		m.log.Err(err).Msg("unable to open stdin pipe for xclip")
 		return
 	}
 
-	index := m.errIndex
-	m.errIndex = -1
+	err = cmd.Start()
+	if err != nil {
+		m.log.Err(err).Msg("unable to start xclip")
+		return
+	}
+	defer cmd.Process.Release()
 
-	m.errParentItem.Hide()
-	m.errMsgItem.SetTitle("")
+	_, err = writer.Write([]byte(content))
+	if err != nil {
+		m.log.Err(err).Msg("unable to write content to xclip")
+		return
+	}
 
-	// reset menu item title
-	t := title(m.names[index])
-	m.items[index].sysItem.SetTitle(t)
+	writer.Close()
+
+	err = cmd.Wait()
+	if err != nil {
+		m.log.Err(err).Msg("unable to wait for xclip to exit")
+		return
+	}
+
+	m.log.Trace().Str("content", content).Msg("saved to xclip")
 }
 
 func (m *Menu) markAndShowErr(err error, index int, it *item) {
@@ -287,15 +311,28 @@ func (m *Menu) showErr(err error) {
 		return
 	}
 
-	msg := err.Error()
-	if len(msg) > maxErrorMsgLen {
-		msg = msg[0:maxErrorMsgLen-1] + "…"
-	}
-
-	m.errMsgItem.SetTitle(msg)
+	m.errMsg = err.Error()
+	m.errMsgItem.SetTitle(m.errMsg)
 	m.errParentItem.Show()
 }
 
 func title(name string) string {
 	return cases.Title(language.English).String(name)
+}
+
+func (m *Menu) clearErr() {
+	if m.errIndex < 0 {
+		return
+	}
+
+	index := m.errIndex
+	m.errIndex = -1
+	m.errMsg = ""
+
+	m.errParentItem.Hide()
+	m.errMsgItem.SetTitle(m.errMsg)
+
+	// reset menu item title
+	t := title(m.names[index])
+	m.items[index].sysItem.SetTitle(t)
 }
