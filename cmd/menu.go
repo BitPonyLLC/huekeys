@@ -80,7 +80,7 @@ func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 		time.Sleep(50 * time.Millisecond)
 		_, err := os.Stat(sockPath)
 		if err == nil {
-			break
+			return nil
 		}
 
 		if !os.IsNotExist(err) {
@@ -88,5 +88,5 @@ func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return nil
+	return fmt.Errorf("unable to start background process as root")
 }

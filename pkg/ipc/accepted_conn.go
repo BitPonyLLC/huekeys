@@ -13,61 +13,52 @@ type acceptedConn struct {
 	conn net.Conn
 }
 
-func (ac *acceptedConn) handleCommands(parent *IPCServer) {
+func (ac *acceptedConn) processCommand(parent *IPCServer) {
 	parent.conns.Store(ac, ac)
 	defer func() {
 		util.LogRecover()
 		parent.conns.Delete(ac)
 		ac.conn.Close()
-		parent.log.Info().Msg("client disconnected")
+		parent.log.Trace().Msg("client disconnected")
 	}()
 
-	parent.log.Info().Msg("client connected")
+	parent.log.Trace().Msg("client connected")
 
 	outWriter := &ConnWriter{conn: ac.conn}
 	errWriter := &ConnWriter{conn: ac.conn, prefix: "ERR: "}
 	parent.cmd.SetOut(outWriter)
 	parent.cmd.SetErr(errWriter)
 	for _, c := range parent.cmd.Commands() {
-		c.SetOut(ac.conn)
-		c.SetErr(ac.conn)
+		c.SetOut(outWriter)
+		c.SetErr(errWriter)
 	}
 
-	scanner := bufio.NewScanner(ac.conn)
-	for scanner.Scan() {
-		line := scanner.Text()
-		clog := parent.log.With().Str("cmd", line).Logger()
+	reader := bufio.NewReader(ac.conn)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		parent.log.Err(err).Msg("unable to read command from client")
+		return
+	}
 
-		args, err := shellwords.Parse(line)
+	clog := parent.log.With().Str("cmd", line).Logger()
+
+	args, err := shellwords.Parse(line)
+	if err != nil {
+		errWriter.Writeln("unable to parse command: %s", line)
+	} else {
+		clog.Debug().Msg("executing")
+		parent.cmd.SetArgs(args)
+		err = parent.cmd.ExecuteContext(parent.ctx)
 		if err != nil {
-			errWriter.Writeln("unable to parse command: %s", line)
-		} else {
-			// need to run async to allow more commands from client
-			go func() {
-				defer util.LogRecover()
-				clog.Debug().Msg("executing")
-				parent.cmd.SetArgs(args)
-				err = parent.cmd.ExecuteContext(parent.ctx)
-				if err != nil {
-					clog.Err(err).Msg("command failed")
-				}
-			}()
+			clog.Err(err).Msg("command failed")
 		}
+	}
 
-		done := false
+	if outWriter.err != nil {
+		clog.Err(outWriter.err).Msg("output writer failed")
+	}
 
-		if outWriter.err != nil {
-			done = true
-			clog.Err(outWriter.err).Msg("output writer failed")
-		}
-
-		if errWriter.err != nil {
-			done = true
-			clog.Err(errWriter.err).Msg("error writer failed")
-		}
-
-		if done {
-			break
-		}
+	if errWriter.err != nil {
+		clog.Err(errWriter.err).Msg("error writer failed")
 	}
 }

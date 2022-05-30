@@ -62,7 +62,7 @@ func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path strin
 			}
 
 			ac := &acceptedConn{conn: conn}
-			go ac.handleCommands(ipc)
+			go ac.processCommand(ipc)
 		}
 	}()
 

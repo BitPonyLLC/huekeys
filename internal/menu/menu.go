@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -18,6 +17,8 @@ import (
 )
 
 const maxErrorMsgLen = 70
+const brightnessPrefix = "Brightness: "
+const colorPrefix = "Color: "
 
 //go:embed tray_icon.png
 var trayIcon []byte
@@ -25,9 +26,9 @@ var trayIcon []byte
 type Menu struct {
 	PatternName string
 
-	ctx context.Context
-	log *zerolog.Logger
-	cli *ipc.IPCClient
+	ctx      context.Context
+	log      *zerolog.Logger
+	sockpath string
 
 	// not using a map because we want order preserved
 	names   []string
@@ -37,6 +38,12 @@ type Menu struct {
 	errIndex      int
 	errParentItem *systray.MenuItem
 	errMsgItem    *systray.MenuItem
+
+	infoItem       *systray.MenuItem
+	brightnessItem *systray.MenuItem
+	colorItem      *systray.MenuItem
+
+	quitItem *systray.MenuItem
 }
 
 type item struct {
@@ -46,15 +53,16 @@ type item struct {
 
 const (
 	done = iota
-	quit
 	errParent
 	errMsg
+	info
+	brightness
+	color
+	quit
 
 	// finally, indicate the last explicit item
 	end
 )
-
-var getRunningRE = regexp.MustCompile(`running = (\S+)`)
 
 // Add will create a menu item with the provided name displayed and will send
 // the provided msg over the IPC client.
@@ -69,52 +77,8 @@ func (m *Menu) Add(name string, msg string) {
 func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) error {
 	m.ctx = ctx
 	m.log = log
+	m.sockpath = sockPath
 
-	m.cli = &ipc.IPCClient{}
-	err := m.cli.Connect(sockPath)
-	if err != nil {
-		return err
-	}
-
-	var running string
-	if m.PatternName == "" {
-		resp, err := m.cli.Send("get")
-		if err != nil {
-			return err
-		}
-
-		match := getRunningRE.FindStringSubmatch(resp)
-		if len(match) == 2 {
-			running = match[1]
-		}
-	} else {
-		_, err := m.cli.Send("run " + m.PatternName)
-		if err != nil {
-			return err
-		}
-
-		running = m.PatternName
-	}
-
-	if running != "" {
-		for i, name := range m.names {
-			if name == running {
-				m.checked = m.items[i]
-				m.checked.sysItem.Check()
-				break
-			}
-		}
-
-		if m.checked == nil {
-			m.log.Warn().Str("running", running).Msg("active pattern was not found in menu items")
-		}
-	}
-
-	systray.Run(m.onReady, nil)
-	return nil
-}
-
-func (m *Menu) onReady() {
 	systray.SetIcon(trayIcon)
 
 	systray.AddSeparator()
@@ -123,15 +87,33 @@ func (m *Menu) onReady() {
 	m.errMsgItem = m.errParentItem.AddSubMenuItemCheckbox("", "", false)
 
 	systray.AddSeparator()
-	quitItem := systray.AddMenuItem("Quit", "")
+	m.infoItem = systray.AddMenuItem("Info", "")
+	m.brightnessItem = m.infoItem.AddSubMenuItemCheckbox(brightnessPrefix+"🯄", "", false)
+	m.colorItem = m.infoItem.AddSubMenuItemCheckbox(colorPrefix+"🯄", "", false)
 
-	go m.listen(quitItem.ClickedCh)
+	systray.AddSeparator()
+	m.quitItem = systray.AddMenuItem("Quit", "")
+
+	if m.PatternName != "" {
+		_, err := ipc.Send(m.sockpath, "run "+m.PatternName)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := m.update()
+	if err != nil {
+		return err
+	}
+
+	systray.Run(m.listen, nil)
+	return nil
 }
 
-func (m *Menu) listen(quitCh chan struct{}) {
+func (m *Menu) listen() {
 	defer func() {
 		util.LogRecover()
-		m.cli.Send("quit")
+		ipc.Send(m.sockpath, "quit")
 		systray.Quit()
 	}()
 
@@ -140,9 +122,12 @@ func (m *Menu) listen(quitCh chan struct{}) {
 	for {
 		// explicit channels
 		cases[done] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.ctx.Done())}
-		cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(quitCh)}
 		cases[errParent] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errParentItem.ClickedCh)}
 		cases[errMsg] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errMsgItem.ClickedCh)}
+		cases[info] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.infoItem.ClickedCh)}
+		cases[brightness] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.brightnessItem.ClickedCh)}
+		cases[color] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.colorItem.ClickedCh)}
+		cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.quitItem.ClickedCh)}
 
 		// dynamic channels
 		for i, it := range m.items {
@@ -160,14 +145,21 @@ func (m *Menu) listen(quitCh chan struct{}) {
 			case done:
 				return
 			case errParent:
-				continue // ignore
+				// ignore
 			case errMsg:
+				// TODO: copy error into clipboard
 				m.clearErr()
-				continue
+			case info:
+				m.showErr(m.update())
+			case brightness:
+				// TODO: copy color into clipboard
+			case color:
+				// TODO: copy color into clipboard
 			default:
 				m.log.Fatal().Int("index", index).Msg("missing channel handler")
 				return
 			}
+			continue
 		}
 
 		if !ok {
@@ -179,9 +171,9 @@ func (m *Menu) listen(quitCh chan struct{}) {
 		it := m.items[index]
 		m.log.Debug().Str("cmd", it.msg).Msg("sending")
 
-		resp, err := m.cli.Send(it.msg)
+		resp, err := ipc.Send(m.sockpath, it.msg)
 		if err != nil {
-			m.showErr(err, index, it)
+			m.markAndShowErr(err, index, it)
 		} else {
 			if m.checked != nil {
 				m.checked.sysItem.Uncheck()
@@ -206,6 +198,61 @@ func (m *Menu) listen(quitCh chan struct{}) {
 	}
 }
 
+func (m *Menu) update() error {
+	resp, err := ipc.Send(m.sockpath, "get")
+	if err != nil {
+		return err
+	}
+
+	lines := strings.Split(resp, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		key, val, found := strings.Cut(line, " = ")
+		if !found {
+			m.log.Warn().Str("line", line).Msg("unable to parse get response")
+			continue
+		}
+
+		switch key {
+		case "running":
+			if m.checked != nil {
+				m.checked.sysItem.Uncheck()
+				m.checked = nil
+			}
+
+			running, _, found := strings.Cut(val, " ")
+			if !found || running == "" {
+				m.log.Warn().Str("val", val).Msg("unable to parse running value")
+				continue
+			}
+
+			for i, name := range m.names {
+				if name == running {
+					m.checked = m.items[i]
+					m.checked.sysItem.Check()
+					continue
+				}
+			}
+
+			if m.checked == nil {
+				m.log.Warn().Str("running", running).Msg("active pattern was not found in menu items")
+			}
+		case "brightness":
+			m.brightnessItem.SetTitle(brightnessPrefix + val)
+		case "color":
+			m.colorItem.SetTitle(colorPrefix + val)
+		default:
+			m.log.Warn().Str("line", line).Msg("ignoring unknown info from get response")
+		}
+	}
+
+	return nil
+}
+
 func (m *Menu) clearErr() {
 	if m.errIndex < 0 {
 		return
@@ -222,7 +269,7 @@ func (m *Menu) clearErr() {
 	m.items[index].sysItem.SetTitle(t)
 }
 
-func (m *Menu) showErr(err error, index int, it *item) {
+func (m *Menu) markAndShowErr(err error, index int, it *item) {
 	if m.errIndex > -1 {
 		m.clearErr()
 	}
@@ -231,6 +278,14 @@ func (m *Menu) showErr(err error, index int, it *item) {
 	m.errIndex = index
 	name := m.names[index]
 	it.sysItem.SetTitle("❌ " + title(name))
+
+	m.showErr(err)
+}
+
+func (m *Menu) showErr(err error) {
+	if err == nil {
+		return
+	}
 
 	msg := err.Error()
 	if len(msg) > maxErrorMsgLen {
