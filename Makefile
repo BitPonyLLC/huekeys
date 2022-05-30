@@ -14,6 +14,12 @@ $(APPNAME): $(shell find -name '*.go')
 watch: .reflex_installed build
 	reflex -r '\.(go)$$' -d fancy -- sh -c '$(MAKE) build && cat buildinfo/build_time.txt'
 
+appname:
+	@echo $(APPNAME)
+
+version:
+	@cat buildinfo/version.txt
+
 # grab the list of simple color names (the full list is quite large)
 $(CNAMESFN):
 	curl -sS https://raw.githubusercontent.com/meodai/color-names/master/src/colornames.csv | \
@@ -27,4 +33,4 @@ $(CNAMESFN):
 clean:
 	$(RM) .reflex_installed $(APPNAME) buildinfo/version.txt $(CNAMESFN)
 
-.PHONY: clean
+.PHONY: appname version clean
