@@ -25,6 +25,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const logDstLabel = "log-dst"
+
 var failureCode = 1
 var dumpConfig = false
 var logF *os.File
@@ -88,8 +90,8 @@ func Execute() int {
 	rootCmd.PersistentFlags().String("log-level", "info", "set logging level: debug, info, warn, error")
 	viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 
-	rootCmd.PersistentFlags().String("log-dst", "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
-	viper.BindPFlag("log-dst", rootCmd.PersistentFlags().Lookup("log-dst"))
+	rootCmd.PersistentFlags().String(logDstLabel, "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
+	viper.BindPFlag(logDstLabel, rootCmd.PersistentFlags().Lookup(logDstLabel))
 
 	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.Name+".pid")
 	rootCmd.PersistentFlags().String("pidpath", defaultPidPath, "pathname of the pidfile")
@@ -194,7 +196,7 @@ func setupLogging(cmd *cobra.Command) error {
 	var logWriter io.Writer
 
 	withTime := true
-	logDst := viper.GetString("log-dst")
+	logDst := viper.GetString(logDstLabel)
 
 	switch logDst {
 	case "syslog":

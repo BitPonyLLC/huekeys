@@ -153,6 +153,7 @@ func (m *Menu) listen() {
 			case errMsg:
 				m.clip(m.errMsg)
 				m.clearErr()
+				m.errMsgItem.Uncheck()
 			case info:
 				m.showErr(m.update())
 			case brightness:
