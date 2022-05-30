@@ -9,37 +9,23 @@ import (
 	"time"
 )
 
-type IPCClient struct {
-	conn net.Conn
-	path string
-}
+const lastLineIdleDelay = 100 * time.Millisecond
 
-func (ipc *IPCClient) Connect(path string) error {
-	var err error
-	ipc.conn, err = net.Dial("unix", path)
+func Send(path, msg string) (string, error) {
+	conn, err := net.Dial("unix", path)
 	if err != nil {
-		return fmt.Errorf("unable to connect to %s: %w", path, err)
+		panic(err)
+		// return "", fmt.Errorf("unable to connect to %s: %w", path, err)
 	}
+	defer conn.Close()
 
-	ipc.path = path
-	return nil
-}
-
-func (ipc *IPCClient) Send(msg string) (string, error) {
-	if ipc.conn == nil {
-		err := ipc.Connect(ipc.path)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	_, err := ipc.conn.Write([]byte(msg + "\n"))
+	_, err = conn.Write([]byte(msg + "\n"))
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) {
-			ipc.conn = nil // server is gone: attempt reconnect on next message
+			conn = nil // server is gone: attempt reconnect on next message
 		}
 
-		return "", fmt.Errorf("unable to send message to %s: %w", ipc.path, err)
+		return "", fmt.Errorf("unable to send message to %s: %w", path, err)
 	}
 
 	// listen for any immediate responses
@@ -47,23 +33,19 @@ func (ipc *IPCClient) Send(msg string) (string, error) {
 	resp := ""
 	go func() {
 		sep := ""
-		scanner := bufio.NewScanner(ipc.conn)
+		scanner := bufio.NewScanner(conn)
 		for scanner.Scan() {
 			line := scanner.Text()
+			lastLineAt = time.Now()
 			resp += sep + line
 			sep = "\n"
-			lastLineAt = time.Now()
 		}
 	}()
 
 	// keep waiting if we're still reading something
-	for time.Since(lastLineAt) < 100*time.Millisecond {
-		time.Sleep(100 * time.Millisecond)
+	for time.Since(lastLineAt) < lastLineIdleDelay {
+		time.Sleep(lastLineIdleDelay)
 	}
 
 	return resp, nil
-}
-
-func (ipc *IPCClient) Close() error {
-	return ipc.conn.Close()
 }
