@@ -17,9 +17,6 @@ watch: .reflex_installed build
 appname:
 	@echo $(APPNAME)
 
-version:
-	@cat buildinfo/version.txt
-
 # grab the list of simple color names (the full list is quite large)
 $(CNAMESFN):
 	curl -sS https://raw.githubusercontent.com/meodai/color-names/master/src/colornames.csv | \
