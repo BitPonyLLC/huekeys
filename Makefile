@@ -14,6 +14,9 @@ $(APPNAME): $(shell find -name '*.go')
 watch: .reflex_installed build
 	reflex -r '\.(go)$$' -d fancy -- sh -c '$(MAKE) build && cat buildinfo/build_time.txt'
 
+tag-%:
+	@set -x ; git tag $$(semver bump $* $$(git describe --tags --abbrev=0))
+
 appname:
 	@echo $(APPNAME)
 
