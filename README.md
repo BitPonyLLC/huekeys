@@ -9,6 +9,9 @@ Huekeys is a fun application that makes it easy to adjust your System76 keyboard
 * Constantly change the color to a random selection.
 * Change the color according to typing speed (cold to hot)
     * Optionally switch to another pattern while typing has stopped for a while!
+* And best of all, manage it from a convenient system tray interface!
+
+  ![systray menu](img/menu-small.png)
 
 ### Installation
 
@@ -24,7 +27,7 @@ NOTE: this only works until reboot since these devices will be recreated w/ the 
 ### Usage
 
 ```
-## help menu
+## show the basic help
 $ huekeys
 
 ## set color to red
@@ -41,11 +44,15 @@ $ huekeys run rainbow &
 
 ## run a infinite pulse in the background
 $ huekeys run pulse &
+
+## my personal favorite, make the colors get warmer the faster you type,
+## but synchronize with the desktop background when idle!
+$ huekeys run typing -i desktop
 ```
 
-![alt text][loop]
+![example][loop]
 
-[loop]: https://github.com/BitPonyLLC/huekeys/blob/master/kb.gif "loop"
+[loop]: img/kb.gif "loop"
 
 ## Attribution
 

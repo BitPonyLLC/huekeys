@@ -9,6 +9,9 @@ import (
 const Name = "huekeys"
 const Description = "Control the keyboard backlight on System76 laptops"
 
+//go:embed full_description.txt
+var FullDescription string
+
 //go:generate sh -c "date -u +%Y-%m-%dT%H:%M:%SZ | tr -d '\n' > build_time.txt"
 
 //go:embed build_time.txt

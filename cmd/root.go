@@ -16,6 +16,7 @@ import (
 	"github.com/BitPonyLLC/huekeys/pkg/ipc"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/BitPonyLLC/huekeys/pkg/pidpath"
+	"github.com/BitPonyLLC/huekeys/pkg/termwrap"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog"
@@ -52,6 +53,9 @@ var rootCmd = &cobra.Command{
 // Execute is the primary entrypoint for this CLI
 func Execute() int {
 	defer atExit()
+
+	tw := termwrap.NewTermWrap(80, 24)
+	rootCmd.Long = tw.Paragraph(buildinfo.FullDescription)
 
 	rootCmd.SetOut(os.Stdout) // default is stderr
 
