@@ -3,39 +3,47 @@ package buildinfo
 import (
 	_ "embed"
 	"fmt"
-	"runtime/debug"
+	"time"
+
+	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v3"
 )
 
-const Name = "huekeys"
-const Description = "Control the keyboard backlight on System76 laptops"
+type AppInfo struct {
+	buildInfo
 
-//go:embed full_description.txt
-var FullDescription string
+	Name            string `yaml:"name"`
+	Description     string `yaml:"description"`
+	FullDescription string `yaml:"full_description"`
+}
 
-//go:generate sh -c "date -u +%Y-%m-%dT%H:%M:%SZ | tr -d '\n' > build_time.txt"
+type buildInfo struct {
+	Version    string    `yaml:"version"`
+	CommitHash string    `yaml:"commit_hash"`
+	BuildTime  time.Time `yaml:"build_time"`
+}
 
-//go:embed build_time.txt
-var BuildTime string
-
-var CommitHash string
-
-// FIXME: figure out why the latest tag doesn't show up in the build info below...
-//go:generate sh -c "git describe --tags --abbrev=0 --dirty --always | tr -d '\n' > version.txt"
-
-//go:embed version.txt
-var Version string
-
+var App AppInfo
 var All string
 
+//go:generate make -C .. buildinfo
+
+//go:embed app.yml
+var app []byte
+
+//go:embed build.yml
+var build []byte
+
 func init() {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				CommitHash = setting.Value[0:7] // use the "short" hash
-				break
-			}
-		}
+	err := yaml.Unmarshal(app, &App)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to parse embedded app info")
 	}
 
-	All = fmt.Sprintf("%s (%s at %s)", Version, CommitHash, BuildTime)
+	err = yaml.Unmarshal(build, &App.buildInfo)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to parse embedded build info")
+	}
+
+	All = fmt.Sprintf("%s (%s at %s)", App.Version, App.CommitHash, App.BuildTime)
 }

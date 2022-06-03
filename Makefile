@@ -1,8 +1,12 @@
 GO = go
 LDFLAGS = -s -w
 
-APPNAME := $(shell sed -n 's/^.*Name = "\([^"]*\)".*$$/\1/p' buildinfo/buildinfo.go)
-CNAMESFN := pkg/keyboard/colornames.csv.gz
+CNAMESFN = pkg/keyboard/colornames.csv.gz
+
+APPNAME = $(shell awk '/^name:/{print $$2}' buildinfo/app.yml)
+VERSION = v$(strip $(shell git describe --tags --abbrev=0 --dirty --always))
+COMMITHASH = $(strip $(shell git rev-parse --short HEAD))
+BUILDTIME = $(strip $(shell date -u +%Y-%m-%dT%H:%M:%SZ))
 
 build: $(CNAMESFN) $(APPNAME)
 
@@ -15,10 +19,20 @@ watch: .reflex_installed build
 	reflex -r '\.(go)$$' -d fancy -- sh -c '$(MAKE) build && cat buildinfo/build_time.txt'
 
 tag-%:
-	@set -x ; git tag $$(semver bump $* $$(git describe --tags --abbrev=0))
+	@set -x ; git tag v$$(semver bump $* $$(git describe --tags --abbrev=0))
 
 appname:
-	@echo $(APPNAME)
+	@echo -n $(APPNAME)
+
+define BUILDINFO
+build_time: $(BUILDTIME)
+commit_hash: $(COMMITHASH)
+version: $(VERSION)
+endef
+
+export BUILDINFO
+buildinfo:
+	echo "$$BUILDINFO" | tee buildinfo/build.yml
 
 # grab the list of simple color names (the full list is quite large)
 $(CNAMESFN):
@@ -33,4 +47,4 @@ $(CNAMESFN):
 clean:
 	$(RM) .reflex_installed $(APPNAME) buildinfo/version.txt $(CNAMESFN)
 
-.PHONY: appname version clean
+.PHONY: build appname buildinfo clean

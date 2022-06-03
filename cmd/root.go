@@ -37,8 +37,8 @@ var pidPath *pidpath.PidPath
 var ipcServer *ipc.IPCServer
 
 var rootCmd = &cobra.Command{
-	Use:               buildinfo.Name,
-	Short:             buildinfo.Description,
+	Use:               buildinfo.App.Name,
+	Short:             buildinfo.App.Description,
 	Version:           buildinfo.All,
 	SilenceUsage:      true,
 	PersistentPreRunE: atStart,
@@ -55,11 +55,11 @@ func Execute() int {
 	defer atExit()
 
 	tw := termwrap.NewTermWrap(80, 24)
-	rootCmd.Long = tw.Paragraph(buildinfo.FullDescription)
+	rootCmd.Long = tw.Paragraph(buildinfo.App.FullDescription)
 
 	rootCmd.SetOut(os.Stdout) // default is stderr
 
-	viper.SetConfigName("." + buildinfo.Name)
+	viper.SetConfigName("." + buildinfo.App.Name)
 	viper.SetConfigType("toml")
 	viper.AddConfigPath("$HOME")
 
@@ -97,11 +97,11 @@ func Execute() int {
 	rootCmd.PersistentFlags().String(logDstLabel, "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
 	viper.BindPFlag(logDstLabel, rootCmd.PersistentFlags().Lookup(logDstLabel))
 
-	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.Name+".pid")
+	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.App.Name+".pid")
 	rootCmd.PersistentFlags().String("pidpath", defaultPidPath, "pathname of the pidfile")
 	viper.BindPFlag("pidpath", rootCmd.PersistentFlags().Lookup("pidpath"))
 
-	defaultSockPath := filepath.Join(os.TempDir(), buildinfo.Name+".sock")
+	defaultSockPath := filepath.Join(os.TempDir(), buildinfo.App.Name+".sock")
 	rootCmd.PersistentFlags().String("sockpath", defaultSockPath, "pathname of the sockfile")
 	viper.BindPFlag("sockpath", rootCmd.PersistentFlags().Lookup("sockpath"))
 
@@ -164,7 +164,7 @@ func atExit() {
 }
 
 func showConfig() error {
-	tf, err := os.CreateTemp(os.TempDir(), buildinfo.Name)
+	tf, err := os.CreateTemp(os.TempDir(), buildinfo.App.Name)
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func setupLogging(cmd *cobra.Command) error {
 
 	switch logDst {
 	case "syslog":
-		syslogger, err := syslog.New(syslog.LOG_INFO, buildinfo.Name)
+		syslogger, err := syslog.New(syslog.LOG_INFO, buildinfo.App.Name)
 		if err != nil {
 			return fail(3, err)
 		}
