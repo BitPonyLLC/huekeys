@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -44,7 +43,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: atStart,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		if dumpConfig {
-			return showConfig()
+			return dump("config", cmd.OutOrStdout())
 		}
 		return cmd.Help()
 	},
@@ -55,7 +54,7 @@ func Execute() int {
 	defer atExit()
 
 	tw := termwrap.NewTermWrap(80, 24)
-	rootCmd.Long = tw.Paragraph(buildinfo.App.FullDescription)
+	rootCmd.Long = tw.Paragraph(buildinfo.App.Description + "\n\n" + buildinfo.App.FullDescription)
 
 	rootCmd.SetOut(os.Stdout) // default is stderr
 
@@ -161,35 +160,6 @@ func atExit() {
 	if pidPath != nil {
 		pidPath.Release()
 	}
-}
-
-func showConfig() error {
-	tf, err := os.CreateTemp(os.TempDir(), buildinfo.App.Name)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		tf.Close()
-		os.Remove(tf.Name())
-	}()
-
-	err = viper.WriteConfigAs(tf.Name())
-	if err != nil {
-		return err
-	}
-
-	_, err = tf.Seek(0, io.SeekStart)
-	if err != nil {
-		return err
-	}
-
-	scanner := bufio.NewScanner(tf)
-	for scanner.Scan() {
-		fmt.Fprintln(os.Stdout, scanner.Text())
-	}
-
-	return nil
 }
 
 const minimalTimeFormat = "15:04:05.000"
