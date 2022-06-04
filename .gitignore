@@ -1,6 +1,6 @@
 huekeys
 .reflex_installed
 
-buildinfo/*.yml
+buildinfo/build.yml
 
 pkg/keyboard/colornames.csv.gz
