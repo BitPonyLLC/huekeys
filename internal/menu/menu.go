@@ -32,15 +32,14 @@ type Menu struct {
 	sockpath string
 
 	// not using a map because we want order preserved
-	names   []string
 	items   []*item
 	checked *item
+	errored *item
 
 	errMsg     string
 	brightness string
 	color      string
 
-	errIndex      int
 	errParentItem *systray.MenuItem
 	errMsgItem    *systray.MenuItem
 
@@ -54,8 +53,9 @@ type Menu struct {
 }
 
 type item struct {
-	sysItem *systray.MenuItem
+	name    string
 	msg     string
+	sysItem *systray.MenuItem
 }
 
 const (
@@ -76,9 +76,11 @@ const (
 // Add will create a menu item with the provided name displayed and will send
 // the provided msg over the IPC client.
 func (m *Menu) Add(name string, msg string) {
-	sysItem := systray.AddMenuItemCheckbox(title(name), "", false)
-	m.names = append(m.names, name)
-	m.items = append(m.items, &item{sysItem: sysItem, msg: msg})
+	m.items = append(m.items, &item{
+		name:    name,
+		msg:     msg,
+		sysItem: systray.AddMenuItemCheckbox(title(name), "", false),
+	})
 }
 
 // Show will display the menu in the system tray and block until quit or parent
@@ -101,8 +103,14 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	m.colorItem = m.infoItem.AddSubMenuItemCheckbox(colorPrefix+"🯄", "", false)
 
 	systray.AddSeparator()
-	m.pauseItem = &item{sysItem: systray.AddMenuItemCheckbox("Pause", "", false)}
-	m.offItem = &item{sysItem: systray.AddMenuItemCheckbox("Off", "", false)}
+	m.pauseItem = &item{
+		sysItem: systray.AddMenuItemCheckbox("Pause", "", false),
+		msg:     "stop",
+	}
+	m.offItem = &item{
+		sysItem: systray.AddMenuItemCheckbox("Off", "", false),
+		msg:     "stop --off",
+	}
 
 	systray.AddSeparator()
 	m.quitItem = systray.AddMenuItem("Quit", "")
@@ -156,16 +164,15 @@ func (m *Menu) listen() {
 		// wait for something to be sent...
 		index, _, ok := reflect.Select(cases)
 
+		var it *item
 		if index < end {
 			switch index {
 			case done:
 				return
 			case pause:
-				// FIXME: send request to pause...
-				m.check(m.pauseItem)
+				it = m.pauseItem
 			case off:
-				// FIXME: send request to pause and disable lights...
-				m.check(m.offItem)
+				it = m.offItem
 			case quit:
 				return
 			case errParent:
@@ -186,21 +193,26 @@ func (m *Menu) listen() {
 				m.log.Fatal().Int("index", index).Msg("missing channel handler")
 				return
 			}
-			continue
+
+			if it == nil {
+				continue
+			}
 		}
 
 		if !ok {
 			continue
 		}
 
-		index -= end // adjust for explicit channels
+		if it == nil {
+			index -= end // adjust for explicit channels
+			it = m.items[index]
+		}
 
-		it := m.items[index]
 		m.log.Debug().Str("cmd", it.msg).Msg("sending")
 
 		resp, err := ipc.Send(m.sockpath, it.msg)
 		if err != nil {
-			m.markAndShowErr(err, index, it)
+			m.markAndShowErr(err, it)
 		} else {
 			m.check(it)
 		}
@@ -265,9 +277,9 @@ func (m *Menu) update() error {
 				continue
 			}
 
-			for i, name := range m.names {
-				if name == running {
-					m.check(m.items[i])
+			for _, it := range m.items {
+				if it.name == running {
+					m.check(it)
 					continue
 				}
 			}
@@ -327,16 +339,10 @@ func (m *Menu) clip(content string) {
 	m.log.Trace().Str("content", content).Msg("saved to xclip")
 }
 
-func (m *Menu) markAndShowErr(err error, index int, it *item) {
-	if m.errIndex > -1 {
-		m.clearErr()
-	}
-
+func (m *Menu) markAndShowErr(err error, it *item) {
+	m.clearErr()
 	m.log.Err(err).Str("cmd", it.msg).Msg("sending")
-	m.errIndex = index
-	name := m.names[index]
-	it.sysItem.SetTitle("❌ " + title(name))
-
+	it.sysItem.SetTitle("❌ " + title(it.name))
 	m.showErr(err)
 }
 
@@ -350,23 +356,21 @@ func (m *Menu) showErr(err error) {
 	m.errParentItem.Show()
 }
 
-func title(name string) string {
-	return cases.Title(language.English).String(name)
-}
-
 func (m *Menu) clearErr() {
-	if m.errIndex < 0 {
+	it := m.errored
+	if it == nil {
 		return
 	}
 
-	index := m.errIndex
-	m.errIndex = -1
+	m.errored = nil
 	m.errMsg = ""
-
 	m.errParentItem.Hide()
 	m.errMsgItem.SetTitle(m.errMsg)
 
 	// reset menu item title
-	t := title(m.names[index])
-	m.items[index].sysItem.SetTitle(t)
+	it.sysItem.SetTitle(title(it.name))
+}
+
+func title(name string) string {
+	return cases.Title(language.English).String(name)
 }

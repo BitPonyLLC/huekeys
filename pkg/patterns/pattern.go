@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 )
@@ -53,6 +54,16 @@ func GetRunning() Pattern {
 }
 
 func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
+	// first, turn keyboard on if it's off...
+	brightness, err := keyboard.GetCurrentBrightness()
+	if err != nil {
+		return err
+	}
+
+	if brightness == "0" {
+		keyboard.BrightnessFileHandler("255")
+	}
+
 	mutex.Lock()
 	if cancel != nil {
 		cancel()
