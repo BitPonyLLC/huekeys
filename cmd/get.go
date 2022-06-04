@@ -8,10 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(getCmd)
-}
-
 var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Gets the color and brightness of the keyboard",
@@ -51,4 +47,8 @@ var getCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+func init() {
+	rootCmd.AddCommand(getCmd)
 }

@@ -1,57 +1,47 @@
 package cmd
 
 import (
+	"strconv"
+
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 
 	"github.com/spf13/cobra"
 )
 
-var listColors bool
-var color string
-var brightness string
-
-func init() {
-	rootCmd.AddCommand(setCmd)
-	setCmd.Flags().BoolVar(&listColors, "list", false, "lists out all color names and values")
-	setCmd.Flags().StringVarP(&color, "color", "c", "", "sets the color using a name, hex value, or \"random\"")
-	setCmd.Flags().StringVarP(&brightness, "brightness", "b", "", "sets the backlight brightness (0 - 255)")
-}
-
 var setCmd = &cobra.Command{
-	Use:   "set",
+	Use:   "set { list | <color-name> | <color-hex-code> | <brightness-number> }...",
 	Short: "Sets the color and/or brightness of the keyboard",
+	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		showHelp := true
+		for _, arg := range args {
+			if arg == "list" {
+				keyboard.EachPresetColor(func(name, value string) {
+					cmd.Printf("%s = %s\n", name, value)
+				})
 
-		if listColors {
-			showHelp = false
-			keyboard.EachPresetColor(func(name, value string) {
-				cmd.Printf("%s = %s\n", name, value)
-			})
-		}
+				continue
+			}
 
-		if color != "" {
-			showHelp = false
-			err := keyboard.ColorFileHandler(color)
+			val, err := strconv.Atoi(arg)
+			if err == nil && val < 256 {
+				err := keyboard.BrightnessFileHandler(arg)
+				if err != nil {
+					return fail(12, err)
+				}
+
+				continue
+			}
+
+			err = keyboard.ColorFileHandler(arg)
 			if err != nil {
 				return fail(11, err)
 			}
 		}
 
-		if brightness != "" {
-			showHelp = false
-			err := keyboard.BrightnessFileHandler(brightness)
-			if err != nil {
-				return fail(12, err)
-			}
-		}
-
-		if showHelp {
-			cmd.Help()
-			cmd.Println()
-			return fail(13, "set requires one or more flags")
-		}
-
 		return nil
 	},
+}
+
+func init() {
+	rootCmd.AddCommand(setCmd)
 }

@@ -7,10 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(quitCmd)
-}
-
 var quitCmd = &cobra.Command{
 	Use:   "quit",
 	Short: "Tells remote process to quit",
@@ -27,4 +23,8 @@ var quitCmd = &cobra.Command{
 
 		return errors.New("no remote process found")
 	},
+}
+
+func init() {
+	rootCmd.AddCommand(quitCmd)
 }

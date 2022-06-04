@@ -14,8 +14,7 @@ const lastLineIdleDelay = 100 * time.Millisecond
 func Send(path, msg string) (string, error) {
 	conn, err := net.Dial("unix", path)
 	if err != nil {
-		panic(err)
-		// return "", fmt.Errorf("unable to connect to %s: %w", path, err)
+		return "", fmt.Errorf("unable to connect to %s: %w", path, err)
 	}
 	defer conn.Close()
 

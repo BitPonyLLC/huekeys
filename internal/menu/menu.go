@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"os/exec"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -31,15 +32,14 @@ type Menu struct {
 	sockpath string
 
 	// not using a map because we want order preserved
-	names   []string
 	items   []*item
 	checked *item
+	errored *item
 
 	errMsg     string
 	brightness string
 	color      string
 
-	errIndex      int
 	errParentItem *systray.MenuItem
 	errMsgItem    *systray.MenuItem
 
@@ -47,12 +47,15 @@ type Menu struct {
 	brightnessItem *systray.MenuItem
 	colorItem      *systray.MenuItem
 
-	quitItem *systray.MenuItem
+	pauseItem *item
+	offItem   *item
+	quitItem  *systray.MenuItem
 }
 
 type item struct {
-	sysItem *systray.MenuItem
+	name    string
 	msg     string
+	sysItem *systray.MenuItem
 }
 
 const (
@@ -62,6 +65,8 @@ const (
 	info
 	brightness
 	color
+	pause
+	off
 	quit
 
 	// finally, indicate the last explicit item
@@ -71,9 +76,11 @@ const (
 // Add will create a menu item with the provided name displayed and will send
 // the provided msg over the IPC client.
 func (m *Menu) Add(name string, msg string) {
-	sysItem := systray.AddMenuItemCheckbox(title(name), "", false)
-	m.names = append(m.names, name)
-	m.items = append(m.items, &item{sysItem: sysItem, msg: msg})
+	m.items = append(m.items, &item{
+		name:    name,
+		msg:     msg,
+		sysItem: systray.AddMenuItemCheckbox(title(name), "", false),
+	})
 }
 
 // Show will display the menu in the system tray and block until quit or parent
@@ -96,6 +103,16 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	m.colorItem = m.infoItem.AddSubMenuItemCheckbox(colorPrefix+"🯄", "", false)
 
 	systray.AddSeparator()
+	m.pauseItem = &item{
+		sysItem: systray.AddMenuItemCheckbox("Pause", "", false),
+		msg:     "stop",
+	}
+	m.offItem = &item{
+		sysItem: systray.AddMenuItemCheckbox("Off", "", false),
+		msg:     "stop --off",
+	}
+
+	systray.AddSeparator()
 	m.quitItem = systray.AddMenuItem("Quit", "")
 
 	if m.PatternName != "" {
@@ -114,6 +131,9 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	return nil
 }
 
+//--------------------------------------------------------------------------------
+// private
+
 func (m *Menu) listen() {
 	defer func() {
 		util.LogRecover()
@@ -126,11 +146,16 @@ func (m *Menu) listen() {
 	for {
 		// explicit channels
 		cases[done] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.ctx.Done())}
+
 		cases[errParent] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errParentItem.ClickedCh)}
 		cases[errMsg] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errMsgItem.ClickedCh)}
+
 		cases[info] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.infoItem.ClickedCh)}
 		cases[brightness] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.brightnessItem.ClickedCh)}
 		cases[color] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.colorItem.ClickedCh)}
+
+		cases[pause] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.pauseItem.sysItem.ClickedCh)}
+		cases[off] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.offItem.sysItem.ClickedCh)}
 		cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.quitItem.ClickedCh)}
 
 		// dynamic channels
@@ -142,11 +167,16 @@ func (m *Menu) listen() {
 		// wait for something to be sent...
 		index, _, ok := reflect.Select(cases)
 
+		var it *item
 		if index < end {
 			switch index {
-			case quit:
-				return
 			case done:
+				return
+			case pause:
+				it = m.pauseItem
+			case off:
+				it = m.offItem
+			case quit:
 				return
 			case errParent:
 				// ignore
@@ -166,28 +196,28 @@ func (m *Menu) listen() {
 				m.log.Fatal().Int("index", index).Msg("missing channel handler")
 				return
 			}
-			continue
+
+			if it == nil {
+				continue
+			}
 		}
 
 		if !ok {
 			continue
 		}
 
-		index -= end // adjust for explicit channels
+		if it == nil {
+			index -= end // adjust for explicit channels
+			it = m.items[index]
+		}
 
-		it := m.items[index]
 		m.log.Debug().Str("cmd", it.msg).Msg("sending")
 
 		resp, err := ipc.Send(m.sockpath, it.msg)
 		if err != nil {
-			m.markAndShowErr(err, index, it)
+			m.markAndShowErr(err, it)
 		} else {
-			if m.checked != nil {
-				m.checked.sysItem.Uncheck()
-			}
-
-			it.sysItem.Check()
-			m.checked = it
+			m.check(it)
 		}
 
 		if resp == "" {
@@ -205,7 +235,18 @@ func (m *Menu) listen() {
 	}
 }
 
+func (m *Menu) check(it *item) {
+	if m.checked != nil {
+		m.checked.sysItem.Uncheck()
+	}
+
+	it.sysItem.Check()
+	m.checked = it
+}
+
 func (m *Menu) update() error {
+	m.check(m.pauseItem) // assume not running until proven otherwise, below...
+
 	resp, err := ipc.Send(m.sockpath, "get")
 	if err != nil {
 		return err
@@ -226,6 +267,8 @@ func (m *Menu) update() error {
 
 		switch key {
 		case "running":
+			m.pauseItem.sysItem.Uncheck()
+
 			if m.checked != nil {
 				m.checked.sysItem.Uncheck()
 				m.checked = nil
@@ -237,10 +280,9 @@ func (m *Menu) update() error {
 				continue
 			}
 
-			for i, name := range m.names {
-				if name == running {
-					m.checked = m.items[i]
-					m.checked.sysItem.Check()
+			for _, it := range m.items {
+				if it.name == running {
+					m.check(it)
 					continue
 				}
 			}
@@ -251,6 +293,12 @@ func (m *Menu) update() error {
 		case "brightness":
 			m.brightness = val
 			m.brightnessItem.SetTitle(brightnessPrefix + val)
+			bn, _ := strconv.Atoi(val)
+			if bn == 0 {
+				m.check(m.offItem)
+			} else {
+				m.offItem.sysItem.Uncheck()
+			}
 		case "color":
 			m.color = val
 			m.colorItem.SetTitle(colorPrefix + val)
@@ -294,16 +342,10 @@ func (m *Menu) clip(content string) {
 	m.log.Trace().Str("content", content).Msg("saved to xclip")
 }
 
-func (m *Menu) markAndShowErr(err error, index int, it *item) {
-	if m.errIndex > -1 {
-		m.clearErr()
-	}
-
+func (m *Menu) markAndShowErr(err error, it *item) {
+	m.clearErr()
 	m.log.Err(err).Str("cmd", it.msg).Msg("sending")
-	m.errIndex = index
-	name := m.names[index]
-	it.sysItem.SetTitle("❌ " + title(name))
-
+	it.sysItem.SetTitle("❌ " + title(it.name))
 	m.showErr(err)
 }
 
@@ -317,23 +359,21 @@ func (m *Menu) showErr(err error) {
 	m.errParentItem.Show()
 }
 
-func title(name string) string {
-	return cases.Title(language.English).String(name)
-}
-
 func (m *Menu) clearErr() {
-	if m.errIndex < 0 {
+	it := m.errored
+	if it == nil {
 		return
 	}
 
-	index := m.errIndex
-	m.errIndex = -1
+	m.errored = nil
 	m.errMsg = ""
-
 	m.errParentItem.Hide()
 	m.errMsgItem.SetTitle(m.errMsg)
 
 	// reset menu item title
-	t := title(m.names[index])
-	m.items[index].sysItem.SetTitle(t)
+	it.sysItem.SetTitle(title(it.name))
+}
+
+func title(name string) string {
+	return cases.Title(language.English).String(name)
 }

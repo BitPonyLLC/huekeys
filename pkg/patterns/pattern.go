@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 )
@@ -14,6 +15,7 @@ type Pattern interface {
 	GetDefaultDelay() time.Duration
 	GetBase() *BasePattern
 	Run(context.Context, *zerolog.Logger) error
+	Stop()
 	String() string
 }
 
@@ -52,6 +54,16 @@ func GetRunning() Pattern {
 }
 
 func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
+	// first, turn keyboard on if it's off...
+	brightness, err := keyboard.GetCurrentBrightness()
+	if err != nil {
+		return err
+	}
+
+	if brightness == "0" {
+		keyboard.BrightnessFileHandler("255")
+	}
+
 	mutex.Lock()
 	if cancel != nil {
 		cancel()
@@ -61,6 +73,16 @@ func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	running = p.self
 	mutex.Unlock()
 	return p.rawRun(cancelCtx, log, "pattern")
+}
+
+func (p *BasePattern) Stop() {
+	mutex.Lock()
+	if cancel != nil {
+		cancel()
+	}
+	cancel = nil
+	running = nil
+	mutex.Unlock()
 }
 
 func (p *BasePattern) String() string {

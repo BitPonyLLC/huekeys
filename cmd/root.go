@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -37,14 +36,14 @@ var pidPath *pidpath.PidPath
 var ipcServer *ipc.IPCServer
 
 var rootCmd = &cobra.Command{
-	Use:               buildinfo.Name,
-	Short:             buildinfo.Description,
+	Use:               buildinfo.App.Name,
+	Short:             buildinfo.App.Description,
 	Version:           buildinfo.All,
 	SilenceUsage:      true,
 	PersistentPreRunE: atStart,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		if dumpConfig {
-			return showConfig()
+			return dump("config", cmd.OutOrStdout())
 		}
 		return cmd.Help()
 	},
@@ -55,11 +54,11 @@ func Execute() int {
 	defer atExit()
 
 	tw := termwrap.NewTermWrap(80, 24)
-	rootCmd.Long = tw.Paragraph(buildinfo.FullDescription)
+	rootCmd.Long = tw.Paragraph(buildinfo.App.Description + "\n\n" + buildinfo.App.FullDescription)
 
 	rootCmd.SetOut(os.Stdout) // default is stderr
 
-	viper.SetConfigName("." + buildinfo.Name)
+	viper.SetConfigName("." + buildinfo.App.Name)
 	viper.SetConfigType("toml")
 	viper.AddConfigPath("$HOME")
 
@@ -69,19 +68,19 @@ func Execute() int {
 			rootCmd.PrintErrln("Unable to read config file:", err)
 			return 1
 		}
+	} else {
+		viper.OnConfigChange(func(e fsnotify.Event) {
+			confLogLevel := viper.GetString("log-level")
+			level, err := zerolog.ParseLevel(confLogLevel)
+			if err != nil {
+				log.Err(err).Str("level", confLogLevel).Msg("unable to parse new log level")
+			} else {
+				zerolog.SetGlobalLevel(level)
+			}
+		})
+
+		viper.WatchConfig()
 	}
-
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		confLogLevel := viper.GetString("log-level")
-		level, err := zerolog.ParseLevel(confLogLevel)
-		if err != nil {
-			log.Err(err).Str("level", confLogLevel).Msg("unable to parse new log level")
-		} else {
-			zerolog.SetGlobalLevel(level)
-		}
-	})
-
-	viper.WatchConfig()
 
 	err = keyboard.LoadEmbeddedColors()
 	if err != nil {
@@ -89,7 +88,7 @@ func Execute() int {
 		return 2
 	}
 
-	rootCmd.PersistentFlags().BoolVar(&dumpConfig, "dump-config", dumpConfig, "dump configuration to stdout")
+	rootCmd.Flags().BoolVar(&dumpConfig, "dump-config", dumpConfig, "dump configuration to stdout")
 
 	rootCmd.PersistentFlags().String("log-level", "info", "set logging level: debug, info, warn, error")
 	viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
@@ -97,11 +96,11 @@ func Execute() int {
 	rootCmd.PersistentFlags().String(logDstLabel, "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
 	viper.BindPFlag(logDstLabel, rootCmd.PersistentFlags().Lookup(logDstLabel))
 
-	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.Name+".pid")
+	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.App.Name+".pid")
 	rootCmd.PersistentFlags().String("pidpath", defaultPidPath, "pathname of the pidfile")
 	viper.BindPFlag("pidpath", rootCmd.PersistentFlags().Lookup("pidpath"))
 
-	defaultSockPath := filepath.Join(os.TempDir(), buildinfo.Name+".sock")
+	defaultSockPath := filepath.Join(os.TempDir(), buildinfo.App.Name+".sock")
 	rootCmd.PersistentFlags().String("sockpath", defaultSockPath, "pathname of the sockfile")
 	viper.BindPFlag("sockpath", rootCmd.PersistentFlags().Lookup("sockpath"))
 
@@ -140,7 +139,7 @@ func atStart(cmd *cobra.Command, _ []string) error {
 	pidPath = pidpath.NewPidPath(viper.GetString("pidpath"), 0666)
 	ipcServer = &ipc.IPCServer{}
 
-	err := setupLogging(cmd)
+	err := setupLogging(cmd, "")
 	if err != nil {
 		return err
 	}
@@ -163,50 +162,30 @@ func atExit() {
 	}
 }
 
-func showConfig() error {
-	tf, err := os.CreateTemp(os.TempDir(), buildinfo.Name)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		tf.Close()
-		os.Remove(tf.Name())
-	}()
-
-	err = viper.WriteConfigAs(tf.Name())
-	if err != nil {
-		return err
-	}
-
-	_, err = tf.Seek(0, io.SeekStart)
-	if err != nil {
-		return err
-	}
-
-	scanner := bufio.NewScanner(tf)
-	for scanner.Scan() {
-		fmt.Fprintln(os.Stdout, scanner.Text())
-	}
-
-	return nil
-}
-
 const minimalTimeFormat = "15:04:05.000"
 
-func setupLogging(cmd *cobra.Command) error {
+func setupLogging(cmd *cobra.Command, logDst string) error {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
 	var logWriter io.Writer
 
 	withTime := true
-	logDst := viper.GetString(logDstLabel)
+
+	if logDst == "" {
+		logDst = viper.GetString(logDstLabel)
+	}
 
 	switch logDst {
 	case "syslog":
-		syslogger, err := syslog.New(syslog.LOG_INFO, buildinfo.Name)
+		syslogger, err := syslog.New(syslog.LOG_INFO, buildinfo.App.Name)
 		if err != nil {
-			return fail(3, err)
+			newErr := setupLogging(cmd, "stderr")
+			if newErr != nil {
+				return newErr
+			}
+
+			log.Warn().Err(err).Msg("unable to use syslog: switched to stderr")
+			return nil
 		}
 
 		withTime = false

@@ -15,6 +15,18 @@ Huekeys is a fun application that makes it easy to adjust your System76 keyboard
 
 ### Installation
 
+Choose one of the following that works best for you:
+
+* Using [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux):
+  ```shell
+  $ brew install bitponyllc/tap/huekeys
+  ```
+* Using [GitHub CLI](https://cli.github.com/):
+  ```shell
+  $ gh release  download -R BitPonyLLC/huekeys -p huekeys
+  ```
+* Download from [the Releases page](https://github.com/BitPonyLLC/huekeys/releases/latest)
+
 Requires sudo privs to modify the backlight files in `/sys/class/leds/system76`. You may consider adjusting permissions. For example, if your user is in the `adm` group (use `id` to determine your group membership), the following will allow setting of color and brightness:
 ```
 $ ( cd /sys/class/leds/system76*\:\:kbd_backlight && \
@@ -26,27 +38,27 @@ NOTE: this only works until reboot since these devices will be recreated w/ the 
 
 ### Usage
 
-```
-## show the basic help
+```shell
+# show the basic help
 $ huekeys
 
-## set color to red
+# set color to red
 $ huekeys set -c red
 
-## set brightness
+# set brightness
 $ huekeys set -b 255
 
-## set color and brightness
+# set color and brightness
 $ huekeys set -c pink -b 127
 
-## run a infinite rainbow in the background
+# run an infinite rainbow in the background
 $ huekeys run rainbow &
 
-## run a infinite pulse in the background
+# run an infinite pulse in the background
 $ huekeys run pulse &
 
-## my personal favorite, make the colors get warmer the faster you type,
-## but synchronize with the desktop background when idle!
+# my personal favorite, make the colors get warmer the faster you type,
+# but synchronize with the desktop background when idle!
 $ huekeys run typing -i desktop
 ```
 
