@@ -4,7 +4,7 @@ LDFLAGS = -s -w
 CNAMESFN = pkg/keyboard/colornames.csv.gz
 
 APPNAME = $(shell awk '/^name:/{print $$2}' buildinfo/app.yml)
-VERSION = v$(strip $(shell git describe --tags --abbrev=0 --dirty --always))
+VERSION = $(strip $(shell git describe --tags --abbrev=0 --dirty --always))
 COMMITHASH = $(strip $(shell git rev-parse --short HEAD))
 BUILDTIME = $(strip $(shell date -u +%Y-%m-%dT%H:%M:%SZ))
 
