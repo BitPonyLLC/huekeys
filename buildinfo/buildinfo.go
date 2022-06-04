@@ -45,5 +45,6 @@ func init() {
 		log.Fatal().Err(err).Msg("unable to parse embedded build info")
 	}
 
-	All = fmt.Sprintf("%s (%s at %s)", App.Version, App.CommitHash, App.BuildTime)
+	buildTime := App.BuildTime.Format(time.RFC3339)
+	All = fmt.Sprintf("%s (%s at %s)", App.Version, App.CommitHash, buildTime)
 }
