@@ -88,7 +88,7 @@ func Execute() int {
 		return 2
 	}
 
-	rootCmd.PersistentFlags().BoolVar(&dumpConfig, "dump-config", dumpConfig, "dump configuration to stdout")
+	rootCmd.Flags().BoolVar(&dumpConfig, "dump-config", dumpConfig, "dump configuration to stdout")
 
 	rootCmd.PersistentFlags().String("log-level", "info", "set logging level: debug, info, warn, error")
 	viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))

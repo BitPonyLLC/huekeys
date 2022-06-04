@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/term"
+
+	"github.com/mitchellh/go-wordwrap"
 )
 
 type TermWrap struct {

@@ -7,14 +7,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var quitCmd = &cobra.Command{
-	Use:   "quit",
-	Short: "Tells remote process to quit",
+var pauseCmd = &cobra.Command{
+	Use:   "pause",
+	Short: "Tells remote process to pause any running pattern",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if pidPath.IsRunning() {
 			if pidPath.IsOurs() {
-				log.Info().Msg("received request to quit")
-				cancelFunc()
+				log.Info().Msg("received request to pause")
 				return nil
 			}
 
@@ -26,5 +25,5 @@ var quitCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(quitCmd)
+	rootCmd.AddCommand(pauseCmd)
 }

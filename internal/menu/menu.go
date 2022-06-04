@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"os/exec"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -47,7 +48,9 @@ type Menu struct {
 	brightnessItem *systray.MenuItem
 	colorItem      *systray.MenuItem
 
-	quitItem *systray.MenuItem
+	pauseItem *item
+	offItem   *item
+	quitItem  *systray.MenuItem
 }
 
 type item struct {
@@ -62,6 +65,8 @@ const (
 	info
 	brightness
 	color
+	pause
+	off
 	quit
 
 	// finally, indicate the last explicit item
@@ -96,6 +101,10 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	m.colorItem = m.infoItem.AddSubMenuItemCheckbox(colorPrefix+"🯄", "", false)
 
 	systray.AddSeparator()
+	m.pauseItem = &item{sysItem: systray.AddMenuItemCheckbox("Pause", "", false)}
+	m.offItem = &item{sysItem: systray.AddMenuItemCheckbox("Off", "", false)}
+
+	systray.AddSeparator()
 	m.quitItem = systray.AddMenuItem("Quit", "")
 
 	if m.PatternName != "" {
@@ -126,11 +135,16 @@ func (m *Menu) listen() {
 	for {
 		// explicit channels
 		cases[done] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.ctx.Done())}
+
 		cases[errParent] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errParentItem.ClickedCh)}
 		cases[errMsg] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errMsgItem.ClickedCh)}
+
 		cases[info] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.infoItem.ClickedCh)}
 		cases[brightness] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.brightnessItem.ClickedCh)}
 		cases[color] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.colorItem.ClickedCh)}
+
+		cases[pause] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.pauseItem.sysItem.ClickedCh)}
+		cases[off] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.offItem.sysItem.ClickedCh)}
 		cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.quitItem.ClickedCh)}
 
 		// dynamic channels
@@ -144,9 +158,15 @@ func (m *Menu) listen() {
 
 		if index < end {
 			switch index {
-			case quit:
-				return
 			case done:
+				return
+			case pause:
+				// FIXME: send request to pause...
+				m.check(m.pauseItem)
+			case off:
+				// FIXME: send request to pause and disable lights...
+				m.check(m.offItem)
+			case quit:
 				return
 			case errParent:
 				// ignore
@@ -182,12 +202,7 @@ func (m *Menu) listen() {
 		if err != nil {
 			m.markAndShowErr(err, index, it)
 		} else {
-			if m.checked != nil {
-				m.checked.sysItem.Uncheck()
-			}
-
-			it.sysItem.Check()
-			m.checked = it
+			m.check(it)
 		}
 
 		if resp == "" {
@@ -205,7 +220,18 @@ func (m *Menu) listen() {
 	}
 }
 
+func (m *Menu) check(it *item) {
+	if m.checked != nil {
+		m.checked.sysItem.Uncheck()
+	}
+
+	it.sysItem.Check()
+	m.checked = it
+}
+
 func (m *Menu) update() error {
+	m.check(m.pauseItem) // assume not running until proven otherwise, below...
+
 	resp, err := ipc.Send(m.sockpath, "get")
 	if err != nil {
 		return err
@@ -226,6 +252,8 @@ func (m *Menu) update() error {
 
 		switch key {
 		case "running":
+			m.pauseItem.sysItem.Uncheck()
+
 			if m.checked != nil {
 				m.checked.sysItem.Uncheck()
 				m.checked = nil
@@ -239,8 +267,7 @@ func (m *Menu) update() error {
 
 			for i, name := range m.names {
 				if name == running {
-					m.checked = m.items[i]
-					m.checked.sysItem.Check()
+					m.check(m.items[i])
 					continue
 				}
 			}
@@ -251,6 +278,12 @@ func (m *Menu) update() error {
 		case "brightness":
 			m.brightness = val
 			m.brightnessItem.SetTitle(brightnessPrefix + val)
+			bn, _ := strconv.Atoi(val)
+			if bn == 0 {
+				m.check(m.offItem)
+			} else {
+				m.offItem.sysItem.Uncheck()
+			}
 		case "color":
 			m.color = val
 			m.colorItem.SetTitle(colorPrefix + val)
