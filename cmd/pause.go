@@ -3,6 +3,8 @@ package cmd
 import (
 	"errors"
 
+	"github.com/BitPonyLLC/huekeys/pkg/patterns"
+
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -13,7 +15,14 @@ var pauseCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if pidPath.IsRunning() {
 			if pidPath.IsOurs() {
-				log.Info().Msg("received request to pause")
+				running := patterns.GetRunning()
+				if running == nil {
+					log.Info().Msg("received request to pause with nothing running")
+					return nil
+				}
+
+				log.Info().Str("pattern", running.GetBase().Name).Msg("received request to pause")
+				running.Stop()
 				return nil
 			}
 
