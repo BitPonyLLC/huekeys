@@ -23,7 +23,7 @@ Choose one of the following that works best for you:
   ```
 * Using [GitHub CLI](https://cli.github.com/):
   ```shell
-  $ gh release  download -R BitPonyLLC/huekeys -p huekeys
+  $ gh release download -R BitPonyLLC/huekeys -p huekeys
   ```
 * Download from [the Releases page](https://github.com/BitPonyLLC/huekeys/releases/latest)
 

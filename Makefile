@@ -16,7 +16,7 @@ $(APPNAME): $(shell find -name '*.go')
 	$(GO) build -ldflags='$(LDFLAGS)' -o $@
 
 watch: .reflex_installed build
-	reflex -r '\.(go)$$' -d fancy -- sh -c '$(MAKE) build && cat buildinfo/build_time.txt'
+	reflex -r '\.(go)$$' -d fancy $(MAKE) build
 
 tag-%:
 	@set -x ; git tag v$$(semver bump $* $$(git describe --tags --abbrev=0))
