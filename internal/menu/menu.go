@@ -131,6 +131,9 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	return nil
 }
 
+//--------------------------------------------------------------------------------
+// private
+
 func (m *Menu) listen() {
 	defer func() {
 		util.LogRecover()

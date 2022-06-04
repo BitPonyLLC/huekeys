@@ -3,6 +3,7 @@ package ipc
 import (
 	"bufio"
 	"net"
+	"strings"
 
 	"github.com/BitPonyLLC/huekeys/pkg/util"
 
@@ -40,6 +41,7 @@ func (ac *acceptedConn) processCommand(parent *IPCServer) {
 		return
 	}
 
+	line = strings.TrimSpace(line)
 	clog := parent.log.With().Str("cmd", line).Logger()
 
 	args, err := shellwords.Parse(line)
