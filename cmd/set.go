@@ -9,7 +9,7 @@ import (
 )
 
 var setCmd = &cobra.Command{
-	Use:   "set { list | color-name | color-hex-code | brightness-number } ...",
+	Use:   "set { list | <color-name> | <color-hex-code> | <brightness-number> }...",
 	Short: "Sets the color and/or brightness of the keyboard",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

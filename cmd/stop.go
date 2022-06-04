@@ -10,18 +10,18 @@ import (
 )
 
 var pauseCmd = &cobra.Command{
-	Use:   "pause",
-	Short: "Tells remote process to pause any running pattern",
+	Use:   "stop",
+	Short: "Tells remote process to stop any running pattern",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if pidPath.IsRunning() {
 			if pidPath.IsOurs() {
 				running := patterns.GetRunning()
 				if running == nil {
-					log.Info().Msg("received request to pause with nothing running")
+					log.Info().Msg("received request to stop with nothing running")
 					return nil
 				}
 
-				log.Info().Str("pattern", running.GetBase().Name).Msg("received request to pause")
+				log.Info().Str("pattern", running.GetBase().Name).Msg("received request to stop")
 				running.Stop()
 				return nil
 			}
