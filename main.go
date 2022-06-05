@@ -1,3 +1,5 @@
+// Huekeys as a command line tool (CLI) is documented in the project's README:
+// https://github.com/BitPonyLLC/huekeys#readme
 package main
 
 import (

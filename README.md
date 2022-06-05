@@ -1,10 +1,27 @@
 # huekeys
 
+<p align="center">
+  <a href="https://goreportcard.com/report/github.com/BitPonyLLC/huekeys">
+    <img src="https://goreportcard.com/badge/github.com/BitPonyLLC/huekeys" alt="Go Report">
+  </a>
+  <a href="https://godoc.org/github.com/BitPonyLLC/huekeys">
+    <img src="https://godoc.org/github.com/BitPonyLLC/huekeys?status.svg" alt="GoDoc">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
+  </a>
+  <a href="https://github.com/BitPonyLLC/huekeys/releases/latest">
+    <img src="https://img.shields.io/github/release/BitPonyLLC/huekeys" alt="GitHub Release">
+  </a>
+</p>
+
+---
+
 Huekeys is a fun application that makes it easy to adjust your System76 keyboard colors and brightness. In addition to the simple ability to set and get the color and brightness, it also provides several patterns that you can run indefinitely, to really make your keyboard pop!
 
-![example][loop]
-
-[loop]: img/kb.gif "loop"
+<p align="center">
+  <img src="img/kb.gif" alt="Color Demo">
+</p>
 
 - Change the color according to CPU utilization (cold to hot).
 - Monitor the desktop picture and change the keyboard color to match.

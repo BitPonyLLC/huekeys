@@ -46,6 +46,6 @@ $(CNAMESFN):
 	touch $@
 
 clean:
-	$(RM) .reflex_installed $(APPNAME) buildinfo/version.txt $(CNAMESFN)
+	$(RM) .reflex_installed $(APPNAME) buildinfo/build.yml $(CNAMESFN)
 
 .PHONY: build appname buildinfo clean
