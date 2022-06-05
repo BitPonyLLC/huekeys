@@ -18,7 +18,11 @@ $(APPNAME): $(shell find -name '*.go')
 watch: .reflex_installed build
 	reflex -r '\.(go)$$' -d fancy $(MAKE) build
 
+tag: tag-patch
 tag-%:
+	test $$(git rev-parse --abbrev-ref HEAD) = 'main'
+	git pull
+	git push
 	./scripts/bump.sh -p v $*
 	echo -n "git push origin v$$(./scripts/bump.sh -p v -l)" | xclip -sel clip -i
 
