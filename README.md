@@ -73,13 +73,13 @@ After installation, note the following:
 $ huekeys
 
 # set color to red
-$ huekeys set -c red
+$ huekeys set red
 
 # set brightness
-$ huekeys set -b 255
+$ huekeys set 255
 
 # set color and brightness
-$ huekeys set -c pink -b 127
+$ huekeys set pink 127
 
 # run an infinite rainbow in the background
 $ huekeys run rainbow &
