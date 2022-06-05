@@ -67,6 +67,20 @@ $ huekeys run pulse &
 $ huekeys run typing -i desktop
 ```
 
+### Menu
+
+To show a system tray icon for controlling the current color pattern from the desktop:
+
+```shell
+$ huekeys menu
+```
+
+Unless there's already another `huekeys` "wait" process already running, you will be prompted for your `sudo` password to run a background process that will listen for commands from the menu app. Once running, simply choose the pattern you'd like to have running!
+
+Optionally, you can also open the *Info* section to see the currently set color and brightness values. Clicking on them will copy those values into your clipboard in case you'd like to use or remember a specific setting for later.
+
+To temporarily stop a pattern, select the *Pause* item, or, to completely turn the keyboard lights off, select *Off*.
+
 ### Configuration
 
 Most of the command line options can be managed through a configuration file. To begin, have the defaults dumped out and saved into your home directory:
