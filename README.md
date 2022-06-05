@@ -83,7 +83,7 @@ To temporarily stop a pattern, select the *Pause* item, or, to completely turn t
 
 ### Remote Control
 
-When there's a background "wait" process running, you can use `huekeys` to coordinate changes from the command line, too. For example, when running `get` you'll note that, in addition to telling you about the current color and brightness values, it also indicates what current color pattern is running. Likewise, most commands will coordinate with the background process allowing you to use `huekeys run` to change the current pattern, or event `huekeys quit` to stop the background proccess.
+When there's a background "wait" process running, you can use `huekeys` to coordinate changes from the command line, too. For example, when running `get` you'll note that, in addition to telling you about the current color and brightness values, it also indicates what current color pattern is running. Likewise, most commands will coordinate with the background process, allowing you to use `huekeys run` to change the current pattern, or even `huekeys quit` to stop the background proccess.
 
 ### Configuration
 
