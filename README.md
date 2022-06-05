@@ -39,28 +39,36 @@ Huekeys is a fun application that makes it easy to adjust your System76 keyboard
 Choose one of the following that works best for you:
 
 - Using [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux):
-  ```shell
+  ```sh
   $ brew install bitponyllc/tap/huekeys
   ```
 - Using [GitHub CLI](https://cli.github.com/):
-  ```shell
+  ```sh
   $ gh release download -R BitPonyLLC/huekeys -p huekeys
   ```
 - Download from [the Releases page](https://github.com/BitPonyLLC/huekeys/releases/latest)
 
-Requires sudo privs to modify the backlight files in `/sys/class/leds/system76`. You may consider adjusting permissions. For example, if your user is in the `adm` group (use `id` to determine your group membership), the following will allow setting of color and brightness:
-
-```
-$ ( cd /sys/class/leds/system76*\:\:kbd_backlight && \
-    sudo chgrp adm color* brightness && \
-    sudo chmod 664 brightness color* )
-```
-
-NOTE: this only works until reboot since these devices will be recreated w/ the original permissions.
+After installation, note the following:
+- If you did *NOT* use Homebrew, you *may* need to install a library:
+  - If you see this error…
+    ```
+    error while loading shared libraries: libayatana-appindicator3.so.1: cannot open shared object file: No such file or directory
+    ```
+    …then run this:
+    ```sh
+    $ sudo apt install libayatana-appindicator3-1
+    ```
+- The device access `huekeys` uses to change the keyboard color, brightness, or to monitor typing, all require root privileges. As such, you must either run with `sudo` or modify the permissions of the devices.
+  - If you want to modify the device permissions, you can do something like the following (depending on your own setup), but **TAKE NOTE** that it will not survive a reboot (the permissions will revert to root-only):
+    ```sh
+    $ ( cd /sys/class/leds/system76*\:\:kbd_backlight && \
+        sudo chgrp adm color* brightness && \
+        sudo chmod 664 brightness color* )
+    ```
 
 ### Usage
 
-```shell
+```sh
 # show the basic help
 $ huekeys
 
@@ -88,7 +96,7 @@ $ huekeys run typing -i desktop
 
 To show a system tray icon for controlling the current color pattern from the desktop:
 
-```shell
+```sh
 $ huekeys menu
 ```
 
@@ -106,7 +114,7 @@ When there's a background "wait" process running, you can use `huekeys` to coord
 
 Most of the command line options can be managed through a configuration file. To begin, have the defaults dumped out and saved into your home directory:
 
-```shell
+```sh
 $ huekeys --dump-config > ~/.huekeys
 ```
 
