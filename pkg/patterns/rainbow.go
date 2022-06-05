@@ -6,6 +6,9 @@ import (
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
+// RainbowPattern is used when changing colors through the traditional colors of
+// a rainbow. The "delay" configuration value expresses the amount of time to
+// wait between changes of color.
 type RainbowPattern struct {
 	BasePattern
 }

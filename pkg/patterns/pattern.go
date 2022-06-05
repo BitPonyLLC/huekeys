@@ -1,3 +1,6 @@
+// Patterns are types that describe how colors and/or brightness should change.
+// All should implement the Pattern interface and the BasePattern type will
+// handle common logic across all patterns.
 package patterns
 
 import (
@@ -11,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Pattern is the expected interface all patterns implement.
 type Pattern interface {
 	GetDefaultDelay() time.Duration
 	GetBase() *BasePattern
@@ -19,6 +23,7 @@ type Pattern interface {
 	String() string
 }
 
+// BasePattern is part of all patterns that provides common attributes and implementation.
 type BasePattern struct {
 	Name string
 
@@ -32,27 +37,28 @@ type BasePattern struct {
 
 const DelayLabel = "delay"
 
+// Get will return a registered Pattern by name.
 func Get(name string) Pattern {
 	return registeredPatterns[name]
 }
 
+// GetDefaultDelay will return the pattern's default delay.
 func (p *BasePattern) GetDefaultDelay() time.Duration {
 	return p.defaultDelay
 }
 
+// GetBase will return the BasePattern of any pattern.
 func (p *BasePattern) GetBase() *BasePattern {
 	return p
 }
 
-// only one allowed to be running at any given time, thus a package global tracker
-var running Pattern
-var mutex sync.Mutex
-var cancel func()
-
+// GetRunning will return nil or the currently running pattern.
 func GetRunning() Pattern {
 	return running
 }
 
+// Run will begin executing a pattern. If the context passed in is canceled, the
+// running pattern will stop.
 func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	// first, turn keyboard on if it's off...
 	brightness, err := keyboard.GetCurrentBrightness()
@@ -75,6 +81,7 @@ func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	return p.rawRun(cancelCtx, log, "pattern")
 }
 
+// Stop will terminate the currently running pattern.
 func (p *BasePattern) Stop() {
 	mutex.Lock()
 	if cancel != nil {
@@ -85,6 +92,7 @@ func (p *BasePattern) Stop() {
 	mutex.Unlock()
 }
 
+// String will return a readable representation of the pattern.
 func (p *BasePattern) String() string {
 	if p.getDelay() == 0 {
 		return p.Name
@@ -101,6 +109,9 @@ type runnable interface {
 }
 
 var registeredPatterns = map[string]Pattern{}
+var running Pattern // only one allowed to be running at any given time, thus a package global tracker
+var mutex sync.Mutex
+var cancel func()
 
 func register(name string, p Pattern, delay time.Duration) {
 	base := p.GetBase()

@@ -19,10 +19,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TypingPattern is used when changing when changing colors from "cold" (blue) to "hot" (red)
+// according to the speed of key presses occurring. The "delay" configuration value expresses
+// the amount of time to wait between evaluating the number of keys recently pressed.
 type TypingPattern struct {
 	BasePattern
 }
 
+// DefaultIdlePeriod is the amount of time the TypingPattern will wait before
+// declaring idle and, if configured, starting another pattern until keys are
+// pressed again.
 const DefaultIdlePeriod = 30 * time.Second
 
 const InputEventIDLabel = "input-event-id"
@@ -33,6 +39,8 @@ const IdlePeriodLabel = "idle-period"
 var _ Pattern = (*TypingPattern)(nil)  // ensures we conform to the Pattern interface
 var _ runnable = (*TypingPattern)(nil) // ensures we conform to the runnable interface
 
+// String is a customized version of the BasePattern String that also includes
+// information about the idle settings.
 func (p *TypingPattern) String() string {
 	str := p.BasePattern.String()
 	idlePattern := p.getIdlePattern()
@@ -119,7 +127,10 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 				}
 			}
 
-			atomic.AddInt32(keyPressCount, -1)
+			if atomic.LoadInt32(keyPressCount) > 0 {
+				atomic.AddInt32(keyPressCount, -1)
+			}
+
 			continue
 		}
 

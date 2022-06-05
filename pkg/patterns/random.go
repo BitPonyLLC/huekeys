@@ -6,6 +6,9 @@ import (
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
+// RandomPattern is used when changing colors by randomly selecting a color
+// value. The "delay" configuration value expresses the amount of time to wait
+// between changes of color.
 type RandomPattern struct {
 	BasePattern
 }

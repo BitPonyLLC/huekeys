@@ -7,6 +7,9 @@ import (
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
+// PulsePattern is used when stepping the brightness values up and down to
+// emulate a slow "pulsing" effect. The "delay" configuration value expresses
+// the amount of time to wait between changes of the brightness.
 type PulsePattern struct {
 	BasePattern
 }
