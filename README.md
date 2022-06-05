@@ -1,16 +1,16 @@
 # huekeys
 
 <p align="center">
-  <a href="https://goreportcard.com/report/github.com/BitPonyLLC/huekeys">
+  <a href="https://goreportcard.com/report/github.com/BitPonyLLC/huekeys" target="_blank">
     <img src="https://goreportcard.com/badge/github.com/BitPonyLLC/huekeys" alt="Go Report">
   </a>
-  <a href="https://godoc.org/github.com/BitPonyLLC/huekeys">
+  <a href="https://godoc.org/github.com/BitPonyLLC/huekeys" target="_blank">
     <img src="https://godoc.org/github.com/BitPonyLLC/huekeys?status.svg" alt="GoDoc">
   </a>
-  <a href="https://opensource.org/licenses/MIT">
+  <a href="https://opensource.org/licenses/MIT" target="_blank">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
   </a>
-  <a href="https://github.com/BitPonyLLC/huekeys/releases/latest">
+  <a href="https://github.com/BitPonyLLC/huekeys/releases/latest" target="_blank">
     <img src="https://img.shields.io/github/release/BitPonyLLC/huekeys" alt="GitHub Release">
   </a>
 </p>
@@ -32,7 +32,9 @@ Huekeys is a fun application that makes it easy to adjust your System76 keyboard
   - Optionally switch to another pattern while typing has stopped for a while!
 - And best of all, manage it from a convenient system tray interface!
 
-  ![systray menu](img/menu-small.png)
+<p style="margin-left:10%;">
+  <a href="img/menu.png" target="_blank"><img src="img/menu-small.png"></a>
+</p>
 
 ### Installation
 
