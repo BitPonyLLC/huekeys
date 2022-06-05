@@ -1,3 +1,5 @@
+// Package ipc is a helper for passing Cobra commands across a Unix domain
+// socket (UDS).
 package ipc
 
 import (
@@ -13,6 +15,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// IPCServer is the type to set up and listen for clients that want to relay
+// commands for the server to execute.
 type IPCServer struct {
 	ctx           context.Context
 	log           *zerolog.Logger
@@ -22,6 +26,10 @@ type IPCServer struct {
 	stopRequested bool
 }
 
+// Start will set up and listen on a Unix domain socket (UDS) located at the
+// provided path until the context provided is canceled. Any clients that attach
+// may issue string commands which will be parsed and processed by the provided
+// Cobra command.
 func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path string, cmd *cobra.Command) error {
 	err := os.Remove(path)
 	if err != nil {
@@ -69,6 +77,8 @@ func (ipc *IPCServer) Start(ctx context.Context, log *zerolog.Logger, path strin
 	return nil
 }
 
+// Stop will close any client connections outstanding as well as the Unix domain
+// socket (UDS) listener.
 func (ipc *IPCServer) Stop() error {
 	if ipc.listener == nil {
 		return nil

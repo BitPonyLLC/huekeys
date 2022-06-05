@@ -15,6 +15,8 @@ var runCmd = &cobra.Command{
 }
 
 func init() {
+	patterns.SetConfig(viper.GetViper())
+
 	rootCmd.AddCommand(runCmd)
 
 	//----------------------------------------

@@ -1,3 +1,5 @@
+// Package p1idpath is a helper for managing a PID file to denote when a process
+// might already be running.
 package pidpath
 
 import (
@@ -9,6 +11,7 @@ import (
 	"time"
 )
 
+// PidPath is the type for managing a PID file.
 type PidPath struct {
 	pidpath   string
 	perm      fs.FileMode
@@ -16,6 +19,8 @@ type PidPath struct {
 	pid       *int
 }
 
+// UnknownPID indicates the PID read from the file wasn't located as a running
+// process.
 const UnknownPID = -1
 
 // NewPidPath manages a process ID file to coordinate whether a process is
@@ -68,6 +73,8 @@ func (pp *PidPath) IsRunning() bool {
 	return pp.Getpid() != UnknownPID
 }
 
+// IsOurs determines if the pidpath indicates that its process is the currently
+// executing one (the caller) of this function.
 func (pp *PidPath) IsOurs() bool {
 	return pp.Getpid() == os.Getpid()
 }

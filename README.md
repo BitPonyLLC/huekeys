@@ -83,7 +83,7 @@ To temporarily stop a pattern, select the *Pause* item, or, to completely turn t
 
 ### Remote Control
 
-When there's a background "wait" process running, you can use `huekeys` to coordinate changes from the command line, too. For example, when running `get` you'll note that, in addition to telling you about the current color and brightness values, it also indicates what current color pattern is running. Likewise, most commands will coordinate with the background process, allowing you to use `huekeys run` to change the current pattern, or even `huekeys quit` to stop the background proccess.
+When there's a background "wait" process running, you can use `huekeys` to coordinate changes from the command line, too. For example, when running `get` you'll note that, in addition to telling you about the current color and brightness values, it also indicates what current color pattern is running. Likewise, most commands will coordinate with the background process, allowing you to use `huekeys run` to change the current pattern, or even `huekeys quit` to stop the background process.
 
 ### Configuration
 
@@ -94,6 +94,8 @@ $ huekeys --dump-config > ~/.huekeys
 ```
 
 Feel free to change the values to better suit your preferences.
+
+NOTE: The configuration file is monitored and when changed, most values will be adjusted in any live running process (e.g. you can change the log level without restarting the process).
 
 |       Global&nbsp;Key       |       Default       | Acceptable Values                                                                                                                          | Description                                                                                                                  |
 | :-------------------------: | :-----------------: | :----------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
@@ -133,4 +135,4 @@ Feel free to change the values to better suit your preferences.
 
 ## Attribution
 
-This project was originally produced as https://github.com/bambash/sys76-kb. Though it's signifcantly different as `huekeys`, a huge thanks goes out to bambash's original as an excellent starting point!
+This project was originally produced as https://github.com/bambash/sys76-kb. Though it's significantly different as `huekeys`, a huge thanks goes out to bambash's original as an excellent starting point!

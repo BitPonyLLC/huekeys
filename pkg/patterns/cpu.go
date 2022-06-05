@@ -12,6 +12,9 @@ import (
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 )
 
+// CPUPattern is used when changing colors from "cold" (blue) to "hot" (red)
+// according to the CPU utilization. The "delay" configuration value expresses
+// the amount of time to wait between samples.
 type CPUPattern struct {
 	BasePattern
 }

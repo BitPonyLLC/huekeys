@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AppInfo provides static data about the running application
 type AppInfo struct {
 	buildInfo
 

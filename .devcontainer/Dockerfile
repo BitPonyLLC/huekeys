@@ -12,7 +12,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -qy install --no-install-recommends gcc libgtk-3-dev libayatana-appindicator3-dev
 
 USER vscode
-RUN go install github.com/cespare/reflex@latest
+RUN go install github.com/cespare/reflex@latest golang.org/x/tools/cmd/godoc@latest
 
 # [Optional] Uncomment this line to install global node packages.
 # RUN su vscode -c "source /usr/local/share/nvm/nvm.sh && npm install -g <your-package-here>" 2>&1

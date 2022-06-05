@@ -18,6 +18,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// DesktopPattern is used when setting colors according to the dominant color of
+// the active Gnome Desktop background picture.
 type DesktopPattern struct {
 	BasePattern
 
