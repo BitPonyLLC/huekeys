@@ -1,4 +1,5 @@
-// Ipc is a helper for passing Cobra commands across a Unix domain socket (UDS).
+// Package ipc is a helper for passing Cobra commands across a Unix domain
+// socket (UDS).
 package ipc
 
 import (

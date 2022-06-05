@@ -1,3 +1,4 @@
+// Package keyboard provides helpers to interact with System76 keyboard devices.
 package keyboard
 
 import (
@@ -23,35 +24,11 @@ type RGBColor struct {
 	Blue  int
 }
 
+// RandomColor is the color name used to pick a randomly generated color code.
 const RandomColor = "random"
-const rgbHexFormat = "%02X%02X%02X"
 
-//go:embed colornames.csv.gz
-var colorNamesCSVGZ string
-
-var presetColors = map[string]RGBColor{
-	"red":    {255, 0, 0},
-	"orange": {255, 128, 0},
-	"yellow": {255, 255, 0},
-	"green":  {0, 255, 0},
-	"aqua":   {25, 255, 223},
-	"blue":   {0, 0, 255},
-	"pink":   {255, 105, 180},
-	"purple": {128, 0, 128},
-	"white":  {255, 255, 255},
-}
-
-var colorFiles = []string{"color", "color_center", "color_left", "color_right", "color_extra"}
-var ledClass = []string{"system76_acpi", "system76"}
-var sysFSPath = "/sys/class/leds/%v::kbd_backlight"
-
-type SysPath struct {
-	Path  string
-	Files [8]string
-}
-
-var foundSysPath *SysPath
-
+// LoadEmbeddedColors will parse the embedded colors file into memory for
+// looking up color hex codes by name.
 func LoadEmbeddedColors() error {
 	rand.Seed(time.Now().UnixMilli())
 
@@ -97,11 +74,161 @@ func (c RGBColor) GetColorInHex() string {
 	return fmt.Sprintf(rgbHexFormat, c.Red, c.Green, c.Blue)
 }
 
-func getSysPath() SysPath {
+// EachPresetColor iterates all the loaded color names and invokes the provided
+// callback for each one.
+func EachPresetColor(cb func(name, value string)) {
+	keys := []string{}
+	for k := range presetColors {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, n := range keys {
+		rgb := presetColors[n]
+		cb(n, rgb.GetColorInHex())
+	}
+}
+
+// ColorFileHandler writes a string to colorFiles.
+func ColorFileHandler(color string) error {
+	sys := getSysPath()
+	if sys.Path == "" {
+		return errors.New("can't get a valid sysfs leds path")
+	}
+
+	if presetColor, exists := presetColors[color]; exists {
+		color = presetColor.GetColorInHex()
+	} else if color == RandomColor {
+		color = getRandomColor()
+	}
+
+	for _, file := range sys.Files {
+		if file == "" {
+			continue
+		}
+
+		p := fmt.Sprintf("%v/%v", sys.Path, file)
+		fh, err := os.OpenFile(p, os.O_RDWR, 0755)
+		if err != nil {
+			return fmt.Errorf("can't open %s: %w", sys.Path, err)
+		}
+		defer fh.Close()
+
+		_, err = fh.WriteString(color)
+		if err != nil {
+			return fmt.Errorf("can't write color to %s: %w", sys.Path, err)
+		}
+
+		log.Trace().Str("file", p).Str("color", color).Msg("set")
+	}
+
+	return nil
+}
+
+// BrightnessFileHandler writes a hex value to brightness and returns the bytes written.
+func BrightnessFileHandler(c string) error {
+	sys := getSysPath()
+	p := fmt.Sprintf("%v/brightness", sys.Path)
+
+	f, err := os.OpenFile(p, os.O_RDWR, 0755)
+	if err != nil {
+		return fmt.Errorf("can't open brightness file (%s): %w", p, err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(c)
+	if err != nil {
+		return fmt.Errorf("can't set brightness value (%s): %w", p, err)
+	}
+
+	return nil
+}
+
+// GetCurrentColors reads the color values currently set and returns their values.
+func GetCurrentColors() (map[string]string, error) {
+	sys := getSysPath()
+	if sys.Path == "" {
+		return nil, errors.New("can't get a valid sysfs leds path")
+	}
+	ret := map[string]string{}
+	for _, file := range sys.Files {
+		if file == "" {
+			continue
+		}
+		p := fmt.Sprintf("%v/%v", sys.Path, file)
+		fh, err := os.Open(p)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		defer fh.Close()
+		buf := make([]byte, 6)
+		_, err = fh.Read(buf)
+		if err != nil {
+			log.Warn().Err(err).Str("path", p).Msg("read failed")
+			continue
+		}
+		ret[file] = getColorOf(string(buf))
+	}
+	return ret, nil
+}
+
+// GetCurrentBrightness reads the brightness value current set and returns its value.
+func GetCurrentBrightness() (string, error) {
+	sys := getSysPath()
+	p := fmt.Sprintf("%v/brightness", sys.Path)
+	f, err := os.Open(p)
+	if err != nil {
+		return "", fmt.Errorf("can't open %s: %w", p, err)
+	}
+	defer f.Close()
+	buf := make([]byte, 3)
+	_, err = f.Read(buf)
+	if err != nil {
+		return "", fmt.Errorf("can't read %s: %w", p, err)
+	}
+	// make sure we don't include the null byte if it's included
+	length := bytes.IndexByte(buf, 0)
+	if length < 0 {
+		length = len(buf)
+	}
+	return strings.TrimSpace(string(buf[0:length])), nil
+}
+
+//--------------------------------------------------------------------------------
+// private
+
+type sysPath struct {
+	Path  string
+	Files [8]string
+}
+
+const rgbHexFormat = "%02X%02X%02X"
+
+//go:embed colornames.csv.gz
+var colorNamesCSVGZ string
+
+var presetColors = map[string]RGBColor{
+	"red":    {255, 0, 0},
+	"orange": {255, 128, 0},
+	"yellow": {255, 255, 0},
+	"green":  {0, 255, 0},
+	"aqua":   {25, 255, 223},
+	"blue":   {0, 0, 255},
+	"pink":   {255, 105, 180},
+	"purple": {128, 0, 128},
+	"white":  {255, 255, 255},
+}
+
+var colorFiles = []string{"color", "color_center", "color_left", "color_right", "color_extra"}
+var ledClass = []string{"system76_acpi", "system76"}
+var sysFSPath = "/sys/class/leds/%v::kbd_backlight"
+var foundSysPath *sysPath
+
+func getSysPath() sysPath {
 	if foundSysPath != nil {
 		return *foundSysPath
 	}
-	ret := SysPath{"", [8]string{}}
+	ret := sysPath{"", [8]string{}}
 	for _, sub := range ledClass {
 		d := fmt.Sprintf(sysFSPath, sub)
 		if _, err := os.Stat(d); !os.IsNotExist(err) {
@@ -139,120 +266,4 @@ func getColorOf(color string) string {
 
 func getRandomColor() string {
 	return fmt.Sprintf(rgbHexFormat, rand.Intn(256), rand.Intn(256), rand.Intn(256))
-}
-
-func EachPresetColor(cb func(name, value string)) {
-	keys := []string{}
-	for k := range presetColors {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, n := range keys {
-		rgb := presetColors[n]
-		cb(n, rgb.GetColorInHex())
-	}
-}
-
-// ColorFileHandler writes a string to colorFiles
-func ColorFileHandler(color string) error {
-	sys := getSysPath()
-	if sys.Path == "" {
-		return errors.New("can't get a valid sysfs leds path")
-	}
-
-	if presetColor, exists := presetColors[color]; exists {
-		color = presetColor.GetColorInHex()
-	} else if color == RandomColor {
-		color = getRandomColor()
-	}
-
-	for _, file := range sys.Files {
-		if file == "" {
-			continue
-		}
-
-		p := fmt.Sprintf("%v/%v", sys.Path, file)
-		fh, err := os.OpenFile(p, os.O_RDWR, 0755)
-		if err != nil {
-			return fmt.Errorf("can't open %s: %w", sys.Path, err)
-		}
-		defer fh.Close()
-
-		_, err = fh.WriteString(color)
-		if err != nil {
-			return fmt.Errorf("can't write color to %s: %w", sys.Path, err)
-		}
-
-		log.Trace().Str("file", p).Str("color", color).Msg("set")
-	}
-
-	return nil
-}
-
-// BrightnessFileHandler writes a hex value to brightness, and returns the bytes written
-func BrightnessFileHandler(c string) error {
-	sys := getSysPath()
-	p := fmt.Sprintf("%v/brightness", sys.Path)
-
-	f, err := os.OpenFile(p, os.O_RDWR, 0755)
-	if err != nil {
-		return fmt.Errorf("can't open brightness file (%s): %w", p, err)
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(c)
-	if err != nil {
-		return fmt.Errorf("can't set brightness value (%s): %w", p, err)
-	}
-
-	return nil
-}
-
-func GetCurrentColors() (map[string]string, error) {
-	sys := getSysPath()
-	if sys.Path == "" {
-		return nil, errors.New("can't get a valid sysfs leds path")
-	}
-	ret := map[string]string{}
-	for _, file := range sys.Files {
-		if file == "" {
-			continue
-		}
-		p := fmt.Sprintf("%v/%v", sys.Path, file)
-		fh, err := os.Open(p)
-		if err != nil {
-			log.Print(err)
-			continue
-		}
-		defer fh.Close()
-		buf := make([]byte, 6)
-		_, err = fh.Read(buf)
-		if err != nil {
-			log.Warn().Err(err).Str("path", p).Msg("read failed")
-			continue
-		}
-		ret[file] = getColorOf(string(buf))
-	}
-	return ret, nil
-}
-
-func GetCurrentBrightness() (string, error) {
-	sys := getSysPath()
-	p := fmt.Sprintf("%v/brightness", sys.Path)
-	f, err := os.Open(p)
-	if err != nil {
-		return "", fmt.Errorf("can't open %s: %w", p, err)
-	}
-	defer f.Close()
-	buf := make([]byte, 3)
-	_, err = f.Read(buf)
-	if err != nil {
-		return "", fmt.Errorf("can't read %s: %w", p, err)
-	}
-	// make sure we don't include the null byte if it's included
-	length := bytes.IndexByte(buf, 0)
-	if length < 0 {
-		length = len(buf)
-	}
-	return strings.TrimSpace(string(buf[0:length])), nil
 }

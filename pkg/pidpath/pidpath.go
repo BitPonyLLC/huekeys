@@ -1,5 +1,5 @@
-// Pidpath is a helper for managing a PID file to denote when a process might
-// already be running.
+// Package p1idpath is a helper for managing a PID file to denote when a process
+// might already be running.
 package pidpath
 
 import (

@@ -1,6 +1,6 @@
-// Patterns are types that describe how colors and/or brightness should change.
-// All should implement the Pattern interface and the BasePattern type will
-// handle common logic across all patterns.
+// Package patterns include types that describe how colors and/or brightness
+// should change. All should implement the Pattern interface and the BasePattern
+// type will handle common logic across all patterns.
 package patterns
 
 import (
