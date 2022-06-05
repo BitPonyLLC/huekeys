@@ -11,6 +11,8 @@ import (
 
 const lastLineIdleDelay = 100 * time.Millisecond
 
+// Send is invoked when a caller wants to connect to an IPCServer listening on
+// the provided path to issue a command as described by the provided msg.
 func Send(path, msg string) (string, error) {
 	conn, err := net.Dial("unix", path)
 	if err != nil {
