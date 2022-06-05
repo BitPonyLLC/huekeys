@@ -20,7 +20,7 @@ watch: .reflex_installed build
 
 tag-%:
 	./scripts/bump.sh -p v $*
-	echo 'git push origin <tagname>'
+	echo -n "git push origin v$$(./scripts/bump.sh -p v -l)" | xclip -sel clip -i
 
 appname:
 	@echo -n $(APPNAME)
