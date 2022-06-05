@@ -11,9 +11,6 @@ RUN if [ "${NODE_VERSION}" != "none" ]; then su vscode -c "umask 0002 && . /usr/
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -qy install --no-install-recommends gcc libgtk-3-dev libayatana-appindicator3-dev
 
-RUN wget -O /usr/local/bin/semver https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver \
-    && chmod +x /usr/local/bin/semver
-
 USER vscode
 RUN go install github.com/cespare/reflex@latest
 

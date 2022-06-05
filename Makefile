@@ -19,7 +19,8 @@ watch: .reflex_installed build
 	reflex -r '\.(go)$$' -d fancy $(MAKE) build
 
 tag-%:
-	@set -x ; git tag v$$(semver bump $* $$(git describe --tags --abbrev=0))
+	./scripts/bump.sh -p v $*
+	echo 'git push origin <tagname>'
 
 appname:
 	@echo -n $(APPNAME)
