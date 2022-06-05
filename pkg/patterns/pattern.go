@@ -11,7 +11,6 @@ import (
 
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/rs/zerolog"
-	"github.com/spf13/viper"
 )
 
 // Pattern is the expected interface all patterns implement.
@@ -21,6 +20,13 @@ type Pattern interface {
 	Run(context.Context, *zerolog.Logger) error
 	Stop()
 	String() string
+}
+
+// Config is the expected interface for retrieving configuration values.
+type Config interface {
+	GetBool(string) bool
+	GetDuration(string) time.Duration
+	GetString(string) string
 }
 
 // BasePattern is part of all patterns that provides common attributes and implementation.
@@ -35,7 +41,14 @@ type BasePattern struct {
 	stopRequested bool
 }
 
+// DelayLabel is used to get the pattern delay from configuration.
 const DelayLabel = "delay"
+
+// SetConfig is used to establish how to retrieve configuration values.
+func SetConfig(cfg Config) Config {
+	config = cfg
+	return config
+}
 
 // Get will return a registered Pattern by name.
 func Get(name string) Pattern {
@@ -108,6 +121,7 @@ type runnable interface {
 	run() error
 }
 
+var config Config
 var registeredPatterns = map[string]Pattern{}
 var running Pattern // only one allowed to be running at any given time, thus a package global tracker
 var mutex sync.Mutex
@@ -147,5 +161,5 @@ func (p *BasePattern) cancelableSleep() bool {
 }
 
 func (p *BasePattern) getDelay() time.Duration {
-	return viper.GetDuration(p.Name + "." + DelayLabel)
+	return config.GetDuration(p.Name + "." + DelayLabel)
 }

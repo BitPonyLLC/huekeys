@@ -15,8 +15,6 @@ import (
 
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/BitPonyLLC/huekeys/pkg/util"
-
-	"github.com/spf13/viper"
 )
 
 // TypingPattern is used when changing when changing colors from "cold" (blue) to "hot" (red)
@@ -31,9 +29,16 @@ type TypingPattern struct {
 // pressed again.
 const DefaultIdlePeriod = 30 * time.Second
 
+// InputEventIDLabel is used to get the event ID from configuration.
 const InputEventIDLabel = "input-event-id"
+
+// AllKeysLabel is used to get the all keys value from configuration.
 const AllKeysLabel = "all-keys"
+
+// IdleLabel is used to get the idle pattern from configuration.
 const IdleLabel = "idle"
+
+// IdlePeriodLabel is used to get the idle period from configuration.
 const IdlePeriodLabel = "idle-period"
 
 var _ Pattern = (*TypingPattern)(nil)  // ensures we conform to the Pattern interface
@@ -55,7 +60,7 @@ func init() {
 }
 
 func (p *TypingPattern) run() error {
-	inputEventID := viper.GetString(p.Name + InputEventIDLabel)
+	inputEventID := config.GetString(p.Name + InputEventIDLabel)
 	if inputEventID == "" {
 		var err error
 		inputEventID, err = lookupInputEventID()
@@ -206,11 +211,11 @@ func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int
 }
 
 func (p *TypingPattern) countAllKeys() bool {
-	return viper.GetBool(p.Name + "." + AllKeysLabel)
+	return config.GetBool(p.Name + "." + AllKeysLabel)
 }
 
 func (p *TypingPattern) getIdlePattern() Pattern {
-	name := viper.GetString(p.Name + "." + IdleLabel)
+	name := config.GetString(p.Name + "." + IdleLabel)
 	if name == "" {
 		return nil
 	}
@@ -225,7 +230,7 @@ func (p *TypingPattern) getIdlePattern() Pattern {
 }
 
 func (p *TypingPattern) getIdlePeriod() time.Duration {
-	return viper.GetDuration(p.Name + "." + IdlePeriodLabel)
+	return config.GetDuration(p.Name + "." + IdlePeriodLabel)
 }
 
 var keyboardEventRE = regexp.MustCompile(`[= ](event\d+)( |$)`)
