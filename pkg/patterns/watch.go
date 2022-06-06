@@ -16,7 +16,6 @@ import (
 type WatchPattern struct {
 	BasePattern
 
-	In  io.Reader
 	Out io.Writer
 }
 

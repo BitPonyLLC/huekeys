@@ -30,9 +30,17 @@ func init() {
 	//----------------------------------------
 	watchPattern := patterns.Get("watch").(*patterns.WatchPattern)
 	watchCmd := addPatternCmd("watch and report color, brightness, and pattern changes", watchPattern)
-	watchCmd.Args = func(cmd *cobra.Command, args []string) error {
-		watchPattern.Out = cmd.OutOrStdout()
-		return nil
+	// watch needs to behave differently from others when run...
+	watchCmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		if pidPath.IsRunning() && !pidPath.IsOurs() {
+			return sendViaIPCForeground(cmd, true)
+		}
+		// there may be multiple watch patterns running (i.e. multiple watch
+		// clients) so each one needs to maintain its own Out writer!
+		pattern := &patterns.WatchPattern{}
+		*pattern = *watchPattern
+		pattern.Out = cmd.OutOrStdout()
+		return pattern.Run(cmd.Context(), &log.Logger)
 	}
 
 	//----------------------------------------
@@ -82,7 +90,7 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if pidPath.IsRunning() && !pidPath.IsOurs() {
-				return sendViaIPCForeground(cmd, cmd.Name() == "watch")
+				return sendViaIPC(cmd)
 			}
 			return pattern.Run(cmd.Context(), &log.Logger)
 		},
