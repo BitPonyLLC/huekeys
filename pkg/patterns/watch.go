@@ -60,6 +60,7 @@ func (p *WatchPattern) Run(parent context.Context, _ *zerolog.Logger) error {
 	keyboardWatcher := keyboard.Events.Watch()
 	patternWatcher := Events.Watch()
 	defer func() {
+		p.Out.Write([]byte("quit\n"))
 		keyboardWatcher.Stop()
 		patternWatcher.Stop()
 	}()

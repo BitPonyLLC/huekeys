@@ -254,9 +254,17 @@ func (m *Menu) watch() {
 	if err != nil {
 		m.log.Err(err).Msg("unable to run watch")
 	}
+
+	systray.Quit()
 }
 
 func (m *Menu) update(line string) bool {
+	line = strings.TrimSpace(line)
+	if line == "quit" {
+		m.log.Debug().Msg("watcher told to quit")
+		return false
+	}
+
 	key, val, found := strings.Cut(line, ":")
 	if !found {
 		m.log.Warn().Str("line", line).Msg("ignoring unknown watch result")
