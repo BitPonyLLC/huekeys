@@ -9,44 +9,96 @@ import (
 	"time"
 )
 
-const lastLineIdleDelay = 100 * time.Millisecond
+// Client is the type used when communicating with an IPCServer.
+type Client struct {
+	Foreground bool
+	RespCB     func(string) bool
+
+	conn       net.Conn
+	lastLineAt time.Time
+}
 
 // Send is invoked when a caller wants to connect to an IPCServer listening on
 // the provided path to issue a command as described by the provided msg.
 func Send(path, msg string) (string, error) {
-	conn, err := net.Dial("unix", path)
-	if err != nil {
-		return "", fmt.Errorf("unable to connect to %s: %w", path, err)
+	resp := ""
+	client := &Client{
+		RespCB: func(s string) bool {
+			resp += s
+			return true
+		},
 	}
-	defer conn.Close()
 
-	_, err = conn.Write([]byte(msg + "\n"))
+	err := client.Send(path, msg)
+	return resp, err
+}
+
+// Send can be invoked on a custom Client with an optional mechanism for
+// processing responses and whether to work in the foreground instead of a
+// Goroutine.
+func (c *Client) Send(path, msg string) error {
+	var err error
+	c.conn, err = net.Dial("unix", path)
+	if err != nil {
+		return fmt.Errorf("unable to connect to %s: %w", path, err)
+	}
+	defer c.conn.Close()
+
+	_, err = c.conn.Write([]byte(msg + "\n"))
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) {
-			conn = nil // server is gone: attempt reconnect on next message
+			// server is gone
+			return nil
 		}
 
-		return "", fmt.Errorf("unable to send message to %s: %w", path, err)
+		return fmt.Errorf("unable to send message to %s: %w", path, err)
 	}
 
-	// listen for any immediate responses
-	lastLineAt := time.Now()
-	resp := ""
-	go func() {
-		sep := ""
-		scanner := bufio.NewScanner(conn)
-		for scanner.Scan() {
-			line := scanner.Text()
-			lastLineAt = time.Now()
-			resp += sep + line
-			sep = "\n"
+	if c.Foreground {
+		// read until remote closes our connection indicating the command is complete (or accepted)
+		c.readResponse()
+	} else {
+		// listen for any immediate responses
+		c.lastLineAt = time.Now()
+
+		go c.readResponse()
+
+		// keep waiting if we're still reading something (e.g. immediate errors
+		// need to be reported in case of failure)
+		for time.Since(c.lastLineAt) < lastLineIdleDelay {
+			time.Sleep(lastLineIdleDelay)
 		}
-	}()
-
-	// keep waiting if we're still reading something
-	for time.Since(lastLineAt) < lastLineIdleDelay {
-		time.Sleep(lastLineIdleDelay)
 	}
 
-	return resp, nil
+	return nil
+}
+
+// Close will terminate the connection.
+func (c *Client) Close() {
+	if c.conn == nil {
+		return
+	}
+
+	conn := c.conn
+	c.conn = nil
+
+	if conn != nil {
+		conn.Close()
+	}
+}
+
+//--------------------------------------------------------------------------------
+// private
+
+const lastLineIdleDelay = 100 * time.Millisecond
+
+func (c *Client) readResponse() {
+	scanner := bufio.NewScanner(c.conn)
+	for scanner.Scan() {
+		line := scanner.Text()
+		c.lastLineAt = time.Now()
+		if !c.RespCB(line + "\n") {
+			return
+		}
+	}
 }

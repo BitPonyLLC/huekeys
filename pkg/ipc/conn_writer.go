@@ -1,9 +1,11 @@
 package ipc
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"syscall"
 )
 
 // ConnWriter is an io.Writer that will relay any bytes written to it into the
@@ -21,8 +23,14 @@ func (cw *ConnWriter) Write(p []byte) (int, error) {
 	p = append([]byte(cw.prefix), p...)
 	n, err := cw.conn.Write(p)
 	if err != nil {
+		if errors.Is(err, syscall.EPIPE) {
+			// client is gone: don't write this to errors, but do pass it along to caller
+			return n, err
+		}
+
 		cw.err = err
 	}
+
 	return n, err
 }
 

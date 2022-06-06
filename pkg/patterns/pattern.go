@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BitPonyLLC/huekeys/pkg/events"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/rs/zerolog"
 )
@@ -29,6 +30,11 @@ type Config interface {
 	GetString(string) string
 }
 
+// ChangeEvent is an event that is emitted when the running pattern is changed.
+type ChangeEvent struct {
+	Pattern string
+}
+
 // BasePattern is part of all patterns that provides common attributes and implementation.
 type BasePattern struct {
 	Name string
@@ -43,6 +49,9 @@ type BasePattern struct {
 
 // DelayLabel is used to get the pattern delay from configuration.
 const DelayLabel = "delay"
+
+// Events are where Watchers can be created and ChangeEvents are emitted.
+var Events = &events.Manager{}
 
 // SetConfig is used to establish how to retrieve configuration values.
 func SetConfig(cfg Config) Config {
@@ -91,6 +100,8 @@ func (p *BasePattern) Run(parent context.Context, log *zerolog.Logger) error {
 	cancelCtx, cancel = context.WithCancel(parent)
 	running = p.self
 	mutex.Unlock()
+
+	Events.Emit(ChangeEvent{Pattern: p.Name})
 	return p.rawRun(cancelCtx, log, "pattern")
 }
 
@@ -122,10 +133,11 @@ type runnable interface {
 }
 
 var config Config
-var registeredPatterns = map[string]Pattern{}
 var running Pattern // only one allowed to be running at any given time, thus a package global tracker
 var mutex sync.Mutex
 var cancel func()
+
+var registeredPatterns = map[string]Pattern{}
 
 func register(name string, p Pattern, delay time.Duration) {
 	base := p.GetBase()
