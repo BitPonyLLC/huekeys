@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/BitPonyLLC/huekeys/pkg/events"
+
 	"github.com/rs/zerolog/log"
 )
 

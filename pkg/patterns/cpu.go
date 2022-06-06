@@ -17,6 +17,8 @@ import (
 // the amount of time to wait between samples.
 type CPUPattern struct {
 	BasePattern
+
+	lastColor string
 }
 
 var _ Pattern = (*CPUPattern)(nil)  // ensures we conform to the Pattern interface
@@ -46,10 +48,16 @@ func (p *CPUPattern) run() error {
 		i := int(math.Round(float64(len(coldHotColors)-1) * cpuPercentage))
 		color := coldHotColors[i]
 
+		if color == p.lastColor {
+			continue
+		}
+
 		err = keyboard.ColorFileHandler(color)
 		if err != nil {
 			return err
 		}
+
+		p.lastColor = color
 	}
 }
 
