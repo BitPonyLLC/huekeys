@@ -6,4 +6,3 @@ huekeys
 buildinfo/build.yml
 
 pkg/keyboard/colornames.csv.gz
-pkg/keyboard/keyboard.go
