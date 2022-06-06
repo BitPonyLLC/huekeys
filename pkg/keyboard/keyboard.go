@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BitPonyLLC/huekeys/pkg/events"
 	"github.com/rs/zerolog/log"
 )
 
@@ -24,8 +25,15 @@ type RGBColor struct {
 	Blue  int
 }
 
+type ChangeEvent struct {
+	Color      string
+	Brightness string
+}
+
 // RandomColor is the color name used to pick a randomly generated color code.
 const RandomColor = "random"
+
+var Events = &events.Manager{}
 
 // LoadEmbeddedColors will parse the embedded colors file into memory for
 // looking up color hex codes by name.
@@ -121,6 +129,7 @@ func ColorFileHandler(color string) error {
 		log.Trace().Str("file", p).Str("color", color).Msg("set")
 	}
 
+	Events.Emit(ChangeEvent{Color: color})
 	return nil
 }
 
@@ -140,6 +149,7 @@ func BrightnessFileHandler(c string) error {
 		return fmt.Errorf("can't set brightness value (%s): %w", p, err)
 	}
 
+	Events.Emit(ChangeEvent{Brightness: c})
 	return nil
 }
 

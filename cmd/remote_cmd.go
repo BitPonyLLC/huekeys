@@ -12,16 +12,31 @@ import (
 )
 
 func sendViaIPC(cmd *cobra.Command) error {
+	return sendViaIPCForeground(cmd, false)
+}
+
+func sendViaIPCForeground(cmd *cobra.Command, foreground bool) error {
 	msg := strings.Join(os.Args[1:], " ")
 	log.Debug().Int("pid", pidPath.Getpid()).Str("cmd", msg).Msg("sending")
 
-	resp, err := ipc.Send(viper.GetString("sockpath"), msg)
-	if err != nil {
-		return err
+	client := &ipc.Client{
+		Foreground: foreground,
+		RespCB: func(line string) bool {
+			cmd.Print(line)
+			return true
+		},
 	}
 
-	if resp != "" {
-		cmd.Print(resp)
+	if foreground {
+		go func() {
+			<-cmd.Context().Done()
+			client.Close()
+		}()
+	}
+
+	err := client.Send(viper.GetString("sockpath"), msg)
+	if err != nil {
+		return err
 	}
 
 	return nil

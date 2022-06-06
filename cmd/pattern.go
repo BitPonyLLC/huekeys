@@ -28,6 +28,14 @@ func init() {
 	addPatternCmd("monitor the desktop picture and change the keyboard color to match", patterns.Get("desktop"))
 
 	//----------------------------------------
+	watchPattern := patterns.Get("watch").(*patterns.WatchPattern)
+	watchCmd := addPatternCmd("watch and report color, brightness, and pattern changes", watchPattern)
+	watchCmd.Args = func(cmd *cobra.Command, args []string) error {
+		watchPattern.Out = cmd.OutOrStdout()
+		return nil
+	}
+
+	//----------------------------------------
 	typingPattern := patterns.Get("typing")
 	typingLabel := typingPattern.GetBase().Name + "."
 
@@ -74,7 +82,7 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if pidPath.IsRunning() && !pidPath.IsOurs() {
-				return sendViaIPC(cmd)
+				return sendViaIPCForeground(cmd, cmd.Name() == "watch")
 			}
 			return pattern.Run(cmd.Context(), &log.Logger)
 		},
