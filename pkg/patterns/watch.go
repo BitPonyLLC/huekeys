@@ -45,14 +45,14 @@ func (p *WatchPattern) Run(parent context.Context, _ *zerolog.Logger) error {
 		break // all will be set to the same value
 	}
 
-	var pattern string
-	running := GetRunning()
-	if running != nil {
-		pattern = running.GetBase().Name
+	var running string
+	pattern := GetRunning()
+	if pattern != nil {
+		running = pattern.GetBase().Name
 	}
 
 	// always produce a report immediately
-	err = p.report(brightness, color, pattern)
+	err = p.report(brightness, color, running)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (p *WatchPattern) Run(parent context.Context, _ *zerolog.Logger) error {
 	for {
 		brightness = ""
 		color = ""
-		pattern = ""
+		running = ""
 
 		select {
 		case <-parent.Done():
@@ -78,10 +78,10 @@ func (p *WatchPattern) Run(parent context.Context, _ *zerolog.Logger) error {
 			brightness = change.Brightness
 			color = change.Color
 		case ev := <-patternWatcher.Ch:
-			pattern = ev.(ChangeEvent).Pattern
+			running = ev.(ChangeEvent).Pattern
 		}
 
-		err = p.report(brightness, color, pattern)
+		err = p.report(brightness, color, running)
 		if err != nil {
 			if errors.Is(err, syscall.EPIPE) {
 				// client is gone: close up shop!
@@ -93,7 +93,7 @@ func (p *WatchPattern) Run(parent context.Context, _ *zerolog.Logger) error {
 	}
 }
 
-func (p *WatchPattern) report(brightness, color, pattern string) error {
+func (p *WatchPattern) report(brightness, color, running string) error {
 	msg := ""
 
 	if brightness != "" {
@@ -104,8 +104,8 @@ func (p *WatchPattern) report(brightness, color, pattern string) error {
 		msg += "c:" + color + "\n"
 	}
 
-	if pattern != "" {
-		msg += "p:" + pattern + "\n"
+	if running != "" {
+		msg += "r:" + running + "\n"
 	}
 
 	if msg != "" {

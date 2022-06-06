@@ -29,6 +29,7 @@ type Menu struct {
 
 	ctx      context.Context
 	log      *zerolog.Logger
+	client   *ipc.Client
 	sockpath string
 
 	// not using a map because we want order preserved
@@ -115,16 +116,14 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	systray.AddSeparator()
 	m.quitItem = systray.AddMenuItem("Quit", "")
 
+	go m.watch()
+	defer func() { m.client.Close() }() // can't immediately defer m.client.Close since it's not set
+
 	if m.PatternName != "" {
 		_, err := ipc.Send(m.sockpath, "run "+m.PatternName)
 		if err != nil {
 			return err
 		}
-	}
-
-	err := m.update()
-	if err != nil {
-		return err
 	}
 
 	systray.Run(m.listen, nil)
@@ -133,6 +132,48 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 
 //--------------------------------------------------------------------------------
 // private
+
+func (m *Menu) watch() {
+	defer util.LogRecover()
+
+	m.check(m.pauseItem) // assume not running until proven otherwise, below...
+
+	m.client = &ipc.Client{
+		Foreground: true,
+		RespCB: func(line string) bool {
+			key, value, found := strings.Cut(line, ":")
+			if !found {
+				m.log.Warn().Str("line", line).Msg("ignoring unknown watch result")
+				return true
+			}
+
+			value = strings.TrimSpace(value)
+
+			brightness := ""
+			color := ""
+			running := ""
+
+			switch key {
+			case "b":
+				brightness = value
+			case "c":
+				color = value
+			case "r":
+				running = value
+			default:
+				m.log.Warn().Str("line", line).Msg("ignoring unknown watch result key")
+			}
+
+			m.update(brightness, color, running)
+			return true
+		},
+	}
+
+	err := m.client.Send(m.sockpath, "run watch")
+	if err != nil {
+		m.log.Err(err).Msg("unable to run watch")
+	}
+}
 
 func (m *Menu) listen() {
 	defer func() {
@@ -185,7 +226,6 @@ func (m *Menu) listen() {
 				m.clearErr()
 				m.errMsgItem.Uncheck()
 			case info:
-				m.showErr(m.update())
 			case brightness:
 				m.clip(m.brightness)
 				m.brightnessItem.Uncheck()
@@ -244,70 +284,42 @@ func (m *Menu) check(it *item) {
 	m.checked = it
 }
 
-func (m *Menu) update() error {
-	m.check(m.pauseItem) // assume not running until proven otherwise, below...
-
-	resp, err := ipc.Send(m.sockpath, "get")
-	if err != nil {
-		return err
-	}
-
-	lines := strings.Split(resp, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		key, val, found := strings.Cut(line, " = ")
-		if !found {
-			m.log.Warn().Str("line", line).Msg("unable to parse get response")
-			continue
-		}
-
-		switch key {
-		case "running":
-			m.pauseItem.sysItem.Uncheck()
-
-			if m.checked != nil {
-				m.checked.sysItem.Uncheck()
-				m.checked = nil
-			}
-
-			running, _, found := strings.Cut(val, " ")
-			if !found || running == "" {
-				m.log.Warn().Str("val", val).Msg("unable to parse running value")
-				continue
-			}
-
-			for _, it := range m.items {
-				if it.name == running {
-					m.check(it)
-					continue
-				}
-			}
-
-			if m.checked == nil {
-				m.log.Warn().Str("running", running).Msg("active pattern was not found in menu items")
-			}
-		case "brightness":
-			m.brightness = val
-			m.brightnessItem.SetTitle(brightnessPrefix + val)
-			bn, _ := strconv.Atoi(val)
-			if bn == 0 {
-				m.check(m.offItem)
-			} else {
-				m.offItem.sysItem.Uncheck()
-			}
-		case "color":
-			m.color = val
-			m.colorItem.SetTitle(colorPrefix + val)
-		default:
-			m.log.Warn().Str("line", line).Msg("ignoring unknown info from get response")
+func (m *Menu) update(brightness, color, running string) {
+	if brightness != "" {
+		m.brightness = brightness
+		m.brightnessItem.SetTitle(brightnessPrefix + brightness)
+		bn, _ := strconv.Atoi(brightness)
+		if bn == 0 {
+			m.check(m.offItem)
+		} else {
+			m.offItem.sysItem.Uncheck()
 		}
 	}
 
-	return nil
+	if color != "" {
+		m.color = color
+		m.colorItem.SetTitle(colorPrefix + color)
+	}
+
+	if running != "" {
+		m.pauseItem.sysItem.Uncheck()
+
+		if m.checked != nil {
+			m.checked.sysItem.Uncheck()
+			m.checked = nil
+		}
+
+		for _, it := range m.items {
+			if it.name == running {
+				m.check(it)
+				break
+			}
+		}
+
+		if m.checked == nil {
+			m.log.Warn().Str("running", running).Msg("active pattern was not found in menu items")
+		}
+	}
 }
 
 func (m *Menu) clip(content string) {

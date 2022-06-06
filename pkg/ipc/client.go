@@ -75,7 +75,16 @@ func (c *Client) Send(path, msg string) error {
 
 // Close will terminate the connection.
 func (c *Client) Close() {
-	c.conn.Close()
+	if c.conn == nil {
+		return
+	}
+
+	conn := c.conn
+	c.conn = nil
+
+	if conn != nil {
+		conn.Close()
+	}
 }
 
 //--------------------------------------------------------------------------------
