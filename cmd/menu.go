@@ -35,7 +35,7 @@ var menuCmd = &cobra.Command{
 		msg := strings.Join(args, " ")
 		menu := &menu.Menu{PatternName: viper.GetString("menu.pattern")}
 		for _, c := range runCmd.Commands() {
-			if c.Name() != "wait" {
+			if c.Name() != "wait" && c.Name() != "watch" {
 				menu.Add(c.Name(), msg+" "+c.Name())
 			}
 		}
