@@ -30,6 +30,7 @@ type Config interface {
 	GetString(string) string
 }
 
+// ChangeEvent is an event that is emitted when the running pattern is changed.
 type ChangeEvent struct {
 	Pattern string
 }
@@ -49,6 +50,7 @@ type BasePattern struct {
 // DelayLabel is used to get the pattern delay from configuration.
 const DelayLabel = "delay"
 
+// Events are where Watchers can be created and ChangeEvents are emitted.
 var Events = &events.Manager{}
 
 // SetConfig is used to establish how to retrieve configuration values.

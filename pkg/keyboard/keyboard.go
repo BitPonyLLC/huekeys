@@ -25,6 +25,8 @@ type RGBColor struct {
 	Blue  int
 }
 
+// ChangeEvent is an event that is emitted when the current brightness or color
+// is changed.
 type ChangeEvent struct {
 	Color      string
 	Brightness string
@@ -33,6 +35,7 @@ type ChangeEvent struct {
 // RandomColor is the color name used to pick a randomly generated color code.
 const RandomColor = "random"
 
+// Events are where Watchers can be created and ChangeEvents are emitted.
 var Events = &events.Manager{}
 
 // LoadEmbeddedColors will parse the embedded colors file into memory for

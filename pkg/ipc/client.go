@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Client is the type used when communicating with an IPCServer.
 type Client struct {
 	Foreground bool
 	RespCB     func(string) bool
@@ -16,8 +17,6 @@ type Client struct {
 	conn       net.Conn
 	lastLineAt time.Time
 }
-
-const lastLineIdleDelay = 100 * time.Millisecond
 
 // Send is invoked when a caller wants to connect to an IPCServer listening on
 // the provided path to issue a command as described by the provided msg.
@@ -34,6 +33,9 @@ func Send(path, msg string) (string, error) {
 	return resp, err
 }
 
+// Send can be invoked on a custom Client with an optional mechanism for
+// processing responses and whether to work in the foreground instead of a
+// Goroutine.
 func (c *Client) Send(path, msg string) error {
 	var err error
 	c.conn, err = net.Dial("unix", path)
@@ -71,9 +73,15 @@ func (c *Client) Send(path, msg string) error {
 	return nil
 }
 
+// Close will terminate the connection.
 func (c *Client) Close() {
 	c.conn.Close()
 }
+
+//--------------------------------------------------------------------------------
+// private
+
+const lastLineIdleDelay = 100 * time.Millisecond
 
 func (c *Client) readResponse() {
 	scanner := bufio.NewScanner(c.conn)
