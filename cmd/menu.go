@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/internal/menu"
 
 	"github.com/rs/zerolog/log"
@@ -32,8 +33,12 @@ var menuCmd = &cobra.Command{
 			args = append([]string{c.Name()}, args...)
 		}
 
+		menu := &menu.Menu{
+			PatternName: viper.GetString("menu.pattern"),
+			AboutInfo:   buildinfo.App.Name + " " + buildinfo.App.Version,
+		}
+
 		msg := strings.Join(args, " ")
-		menu := &menu.Menu{PatternName: viper.GetString("menu.pattern")}
 		for _, c := range runCmd.Commands() {
 			if c.Name() != "wait" && c.Name() != "watch" {
 				menu.Add(c.Name(), msg+" "+c.Name())

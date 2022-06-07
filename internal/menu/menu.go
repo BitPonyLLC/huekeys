@@ -26,6 +26,7 @@ var trayIcon []byte
 
 type Menu struct {
 	PatternName string
+	AboutInfo   string
 
 	ctx      context.Context
 	log      *zerolog.Logger
@@ -45,6 +46,7 @@ type Menu struct {
 	errMsgItem    *systray.MenuItem
 
 	infoItem       *systray.MenuItem
+	aboutItem      *systray.MenuItem
 	brightnessItem *systray.MenuItem
 	colorItem      *systray.MenuItem
 
@@ -64,6 +66,7 @@ const (
 	errParent
 	errMsg
 	info
+	about
 	brightness
 	color
 	pause
@@ -100,6 +103,7 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 
 	systray.AddSeparator()
 	m.infoItem = systray.AddMenuItem("Info", "")
+	m.aboutItem = m.infoItem.AddSubMenuItemCheckbox(m.AboutInfo, "", false)
 	m.brightnessItem = m.infoItem.AddSubMenuItemCheckbox(brightnessPrefix+"🯄", "", false)
 	m.colorItem = m.infoItem.AddSubMenuItemCheckbox(colorPrefix+"🯄", "", false)
 
@@ -150,6 +154,7 @@ func (m *Menu) listen() {
 		cases[errMsg] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errMsgItem.ClickedCh)}
 
 		cases[info] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.infoItem.ClickedCh)}
+		cases[about] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.aboutItem.ClickedCh)}
 		cases[brightness] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.brightnessItem.ClickedCh)}
 		cases[color] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.colorItem.ClickedCh)}
 
@@ -185,6 +190,9 @@ func (m *Menu) listen() {
 				m.errMsgItem.Uncheck()
 			case info:
 				// ignore: just showing the submenu
+			case about:
+				m.clip(m.AboutInfo)
+				m.aboutItem.Uncheck()
 			case brightness:
 				m.clip(m.brightness)
 				m.brightnessItem.Uncheck()
