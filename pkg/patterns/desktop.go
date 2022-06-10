@@ -110,31 +110,7 @@ func (p *DesktopPattern) run() error {
 	return nil
 }
 
-func (p *DesktopPattern) newDesktopSettingCmd(action, group, key string) *exec.Cmd {
-	cmdName := "gsettings"
-	args := []string{}
-
-	// if running as root via sudo, need to ask for the user's desktop image...
-	if os.Getuid() == 0 {
-		sudoUser := os.Getenv("SUDO_USER")
-		if sudoUser != "" {
-			cmdName = "sudo"
-			args = []string{"-Eu", sudoUser, "gsettings"}
-			if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
-				// we need access to the user's gnome session in order to look up correct setting values
-				p.log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
-			}
-		}
-	}
-
-	group = "org.gnome.desktop." + group
-	args = append(args, action, group, key)
-	cmd := exec.Command(cmdName, args...)
-	return cmd
-}
-
 func (p *DesktopPattern) getDesktopSetting(group, key string) (string, error) {
-	// TODO: consider using D-Bus directly instead of gsettings...
 	val, err := p.newDesktopSettingCmd("get", group, key).Output()
 	if err != nil {
 		p.log.Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
@@ -143,6 +119,12 @@ func (p *DesktopPattern) getDesktopSetting(group, key string) (string, error) {
 
 	val = bytes.TrimFunc(val, func(r rune) bool { return unicode.IsSpace(r) || r == '\'' })
 	return string(val), nil
+}
+
+func (p *DesktopPattern) newDesktopSettingCmd(action, group, key string) *exec.Cmd {
+	fullGroup := "org.gnome.desktop." + group
+	args := []string{action, fullGroup, key}
+	return exec.Command("gsettings", args...)
 }
 
 func (p *DesktopPattern) setColorFrom(u string) error {

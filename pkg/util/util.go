@@ -3,6 +3,7 @@ package util
 
 import (
 	"fmt"
+	"os"
 	"syscall"
 
 	"github.com/pkg/errors"
@@ -30,4 +31,15 @@ func BeNice(priority int) error {
 	}
 
 	return nil
+}
+
+// IsTTY determines if a file handle is attached to a TTY.
+func IsTTY(f *os.File) bool {
+	fileInfo, err := f.Stat()
+	if err != nil {
+		log.Err(err).Str("io", f.Name()).Msg("stat failed")
+		return false
+	}
+
+	return (fileInfo.Mode() & os.ModeCharDevice) != 0
 }

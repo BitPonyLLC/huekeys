@@ -9,6 +9,7 @@ import (
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/internal/menu"
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -73,13 +74,32 @@ func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to determine executable pathname: %w", err)
 	}
 
-	// use sh exec to remove sudo parent processes hanging around
-	hkCmd := "exec " + exe + " run wait &"
-	execArgs := []string{"sudo", "-E", "sh", "-c", hkCmd}
-	execStr := strings.Join(execArgs, " ")
+	// viper (config) and gsettings (DesktopPattern) need to point at the user's home directory
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("unable to determine home directory: %w", err)
+	}
+
+	var execName string
+	var execArgs []string
+
+	if util.IsTTY(os.Stdin) {
+		execName = "sudo"
+		execArgs = []string{}
+	} else {
+		// need to open a dialog for permission...
+		execName = "pkexec"
+		execArgs = []string{"--user", "root"}
+	}
+
+	// use sh exec to let parent processes exit
+	hkCmd := fmt.Sprint("export HOME=", home, "; exec ", exe, " run wait &")
+	execArgs = append(execArgs, "sh", "-c", hkCmd)
+
+	execStr := fmt.Sprint(execName, " ", strings.Join(execArgs, " "))
 	log.Debug().Str("cmd", execStr).Msg("")
 
-	err = exec.Command("sudo", "-E", "sh", "-c", hkCmd).Run()
+	err = exec.Command(execName, execArgs...).Run()
 	if err != nil {
 		return fmt.Errorf("unable to run %s: %w", execStr, err)
 	}
