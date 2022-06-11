@@ -142,7 +142,7 @@ func (p *DesktopPattern) run() error {
 	}
 
 	p.backgroundProcess = cmd.Process
-	p.log.Debug().Int("pid", p.backgroundProcess.Pid).Msg("started desktop background monitor")
+	p.log.Debug().Int("pid", p.backgroundProcess.Pid).Str("cmd", cmd.String()).Msg("started")
 
 	go func() {
 		defer util.LogRecover()
@@ -235,7 +235,7 @@ func (e *preservedEnv) String() string {
 	str := ""
 
 	if e.RuntimeDir != "" {
-		str += runtimeDirKey + "=" + e.RuntimeDir + "; "
+		str += runtimeDirKey + "=" + e.RuntimeDir + " "
 	}
 
 	return str

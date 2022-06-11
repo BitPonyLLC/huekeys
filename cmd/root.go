@@ -25,30 +25,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const logDstLabel = "log-dst"
-
-var failureCode = 1
-var dumpConfig = false
-var logF *os.File
-
-var cancelFunc func()
-var pidPath *pidpath.PidPath
-var ipcServer *ipc.IPCServer
-
-var rootCmd = &cobra.Command{
-	Use:               buildinfo.App.Name,
-	Short:             buildinfo.App.Description,
-	Version:           buildinfo.All,
-	SilenceUsage:      true,
-	PersistentPreRunE: atStart,
-	RunE: func(cmd *cobra.Command, _ []string) error {
-		if dumpConfig {
-			return dump("config", cmd.OutOrStdout())
-		}
-		return cmd.Help()
-	},
-}
-
 // Execute is the primary entrypoint for this CLI
 func Execute() int {
 	defer atExit()
@@ -58,36 +34,13 @@ func Execute() int {
 
 	rootCmd.SetOut(os.Stdout) // default is stderr
 
-	viper.SetConfigName("." + buildinfo.App.Name)
-	viper.SetConfigType("toml")
-	viper.AddConfigPath("$HOME")
-
-	err := viper.ReadInConfig()
-	if err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			rootCmd.PrintErrln("Unable to read config file:", err)
-			return 1
-		}
-	} else {
-		viper.OnConfigChange(func(e fsnotify.Event) {
-			confLogLevel := viper.GetString("log-level")
-			level, err := zerolog.ParseLevel(confLogLevel)
-			if err != nil {
-				log.Err(err).Str("level", confLogLevel).Msg("unable to parse new log level")
-			} else {
-				zerolog.SetGlobalLevel(level)
-			}
-		})
-
-		viper.WatchConfig()
-	}
-
-	err = keyboard.LoadEmbeddedColors()
+	err := keyboard.LoadEmbeddedColors()
 	if err != nil {
 		rootCmd.PrintErrln("Unable to load colors:", err)
 		return 2
 	}
 
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", configPath, "the configuration file to load")
 	rootCmd.Flags().BoolVar(&dumpConfig, "dump-config", dumpConfig, "dump configuration to stdout")
 
 	rootCmd.PersistentFlags().String("log-level", "info", "set logging level: debug, info, warn, error")
@@ -128,7 +81,36 @@ func Execute() int {
 	return 0
 }
 
+//--------------------------------------------------------------------------------
+// private
+
+const logDstLabel = "log-dst"
+const minimalTimeFormat = "15:04:05.000"
+
+var failureCode = 1
 var initialized = false
+
+var configPath = "$HOME/." + buildinfo.App.Name
+var dumpConfig = false
+var logF *os.File
+
+var cancelFunc func()
+var pidPath *pidpath.PidPath
+var ipcServer *ipc.IPCServer
+
+var rootCmd = &cobra.Command{
+	Use:               buildinfo.App.Name,
+	Short:             buildinfo.App.Description,
+	Version:           buildinfo.All,
+	SilenceUsage:      true,
+	PersistentPreRunE: atStart,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		if dumpConfig {
+			return dump("config", cmd.OutOrStdout())
+		}
+		return cmd.Help()
+	},
+}
 
 func atStart(cmd *cobra.Command, _ []string) error {
 	if initialized {
@@ -139,7 +121,30 @@ func atStart(cmd *cobra.Command, _ []string) error {
 	pidPath = pidpath.NewPidPath(viper.GetString("pidpath"), 0666)
 	ipcServer = &ipc.IPCServer{}
 
-	err := setupLogging(cmd, "")
+	viper.SetConfigName(filepath.Base(configPath))
+	viper.SetConfigType("toml")
+	viper.AddConfigPath(filepath.Dir(configPath))
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return fmt.Errorf("unable to read config file: %w", err)
+		}
+	} else {
+		viper.OnConfigChange(func(e fsnotify.Event) {
+			confLogLevel := viper.GetString("log-level")
+			level, err := zerolog.ParseLevel(confLogLevel)
+			if err != nil {
+				log.Err(err).Str("level", confLogLevel).Msg("unable to parse new log level")
+			} else {
+				zerolog.SetGlobalLevel(level)
+			}
+		})
+
+		viper.WatchConfig()
+	}
+
+	err = setupLogging(cmd, "")
 	if err != nil {
 		return err
 	}
@@ -161,8 +166,6 @@ func atExit() {
 		pidPath.Release()
 	}
 }
-
-const minimalTimeFormat = "15:04:05.000"
 
 func setupLogging(cmd *cobra.Command, logDst string) error {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack

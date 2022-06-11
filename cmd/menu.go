@@ -75,17 +75,6 @@ func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to determine executable pathname: %w", err)
 	}
 
-	exports := []string{}
-
-	// viper (config) needs to point at the user's home directory
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("unable to determine home directory: %w", err)
-	}
-
-	// FIXME: remove this and, instead, add a --config option and pass it along to point to what's currently in use!
-	exports = append(exports, "export HOME="+home)
-
 	dpEnv, err := patterns.DesktopPatternEnv()
 	if err != nil {
 		if util.IsTTY(os.Stderr) {
@@ -94,8 +83,6 @@ func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 			log.Warn().Err(err).Msg("")
 		}
 	}
-
-	exports = append(exports, "export "+dpEnv)
 
 	var execName string
 	var execArgs []string
@@ -111,7 +98,8 @@ func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 	}
 
 	// use sh exec to let parent processes exit
-	hkCmd := fmt.Sprint(strings.Join(exports, "; "), "; exec ", exe, " run wait &")
+	hkCmd := fmt.Sprint("export ", dpEnv, "; exec ", exe,
+		" --config ", viper.GetViper().ConfigFileUsed(), " run wait &")
 	execArgs = append(execArgs, "sh", "-c", hkCmd)
 
 	execStr := fmt.Sprint(execName, " ", strings.Join(execArgs, " "))
