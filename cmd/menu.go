@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
@@ -21,6 +23,7 @@ import (
 
 var patternName string
 var menuPidpath *pidpath.PidPath
+var restarting = false
 
 func init() {
 	menuCmd.Flags().StringVarP(&patternName, "pattern", "p", patternName, "name of pattern to run at start")
@@ -46,6 +49,15 @@ var menuCmd = &cobra.Command{
 		return ensureWaitRunning(cmd)
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		restart := make(chan os.Signal, 1)
+		signal.Notify(restart, syscall.SIGHUP)
+		go func() {
+			sig := <-restart
+			restarting = true
+			log.Info().Str("signal", sig.String()).Msg("restarting")
+			cancelFunc()
+		}()
+
 		args := []string{}
 		for c := runCmd; c != rootCmd; c = c.Parent() {
 			args = append([]string{c.Name()}, args...)
@@ -69,6 +81,18 @@ var menuCmd = &cobra.Command{
 		if menuPidpath != nil {
 			menuPidpath.Release()
 		}
+
+		if !restarting {
+			return
+		}
+
+		mCmd := exec.Command(os.Args[0], os.Args[1:]...)
+		err := mCmd.Start()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to restart menu")
+		}
+
+		log.Info().Str("cmd", mCmd.String()).Interface("menu", mCmd.Process).Msg("new menu process started")
 	},
 	Args: func(cmd *cobra.Command, args []string) error {
 		if patternName == "" {
