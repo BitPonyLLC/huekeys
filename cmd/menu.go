@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/internal/menu"
 	"github.com/BitPonyLLC/huekeys/pkg/patterns"
+	"github.com/BitPonyLLC/huekeys/pkg/pidpath"
 	"github.com/BitPonyLLC/huekeys/pkg/util"
 
 	"github.com/rs/zerolog/log"
@@ -18,17 +20,31 @@ import (
 )
 
 var patternName string
+var menuPidpath *pidpath.PidPath
 
 func init() {
 	menuCmd.Flags().StringVarP(&patternName, "pattern", "p", patternName, "name of pattern to run at start")
 	viper.BindPFlag("menu.pattern", menuCmd.Flags().Lookup("pattern"))
+
+	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.App.Name+"-menu.pid")
+	menuCmd.Flags().String("menu-pidpath", defaultPidPath, "pathname of the menu pidfile")
+	viper.BindPFlag("menu.pidpath", menuCmd.Flags().Lookup("menu-pidpath"))
+
 	rootCmd.AddCommand(menuCmd)
 }
 
 var menuCmd = &cobra.Command{
-	Use:     "menu",
-	Short:   "Display a menu in the system tray",
-	PreRunE: ensureWaitRunning,
+	Use:   "menu",
+	Short: "Display a menu in the system tray",
+	PreRunE: func(cmd *cobra.Command, _ []string) error {
+		menuPidpath = pidpath.NewPidPath(viper.GetString("menu.pidpath"), 0666)
+		err := menuPidpath.CheckAndSet()
+		if err != nil {
+			return err
+		}
+
+		return ensureWaitRunning(cmd)
+	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		args := []string{}
 		for c := runCmd; c != rootCmd; c = c.Parent() {
@@ -49,6 +65,11 @@ var menuCmd = &cobra.Command{
 
 		return menu.Show(cmd.Context(), &log.Logger, viper.GetString("sockpath"))
 	},
+	PostRun: func(_ *cobra.Command, _ []string) {
+		if menuPidpath != nil {
+			menuPidpath.Release()
+		}
+	},
 	Args: func(cmd *cobra.Command, args []string) error {
 		if patternName == "" {
 			return nil
@@ -64,7 +85,7 @@ var menuCmd = &cobra.Command{
 	},
 }
 
-func ensureWaitRunning(cmd *cobra.Command, args []string) error {
+func ensureWaitRunning(cmd *cobra.Command) error {
 	if !pidPath.IsOurs() && pidPath.IsRunning() {
 		// wait is already executing in the background
 		return nil
