@@ -33,7 +33,7 @@ func init() {
 	// watch needs to behave differently from others when run...
 	watchCmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		if pidPath.IsRunning() && !pidPath.IsOurs() {
-			return sendViaIPCForeground(cmd, true)
+			return sendViaIPCForeground(cmd, true, "")
 		}
 		// there may be multiple watch patterns running (i.e. multiple watch
 		// clients) so each one needs to maintain its own Out writer!

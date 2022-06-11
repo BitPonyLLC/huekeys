@@ -9,6 +9,7 @@ import (
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/internal/menu"
+	"github.com/BitPonyLLC/huekeys/pkg/patterns"
 	"github.com/BitPonyLLC/huekeys/pkg/util"
 
 	"github.com/rs/zerolog/log"
@@ -74,16 +75,33 @@ func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to determine executable pathname: %w", err)
 	}
 
-	// viper (config) and gsettings (DesktopPattern) need to point at the user's home directory
+	exports := []string{}
+
+	// viper (config) needs to point at the user's home directory
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("unable to determine home directory: %w", err)
 	}
 
+	// FIXME: remove this and, instead, add a --config option and pass it along to point to what's currently in use!
+	exports = append(exports, "export HOME="+home)
+
+	dpEnv, err := patterns.DesktopPatternEnv()
+	if err != nil {
+		if util.IsTTY(os.Stderr) {
+			cmd.PrintErrln(err)
+		} else {
+			log.Warn().Err(err).Msg("")
+		}
+	}
+
+	exports = append(exports, "export "+dpEnv)
+
 	var execName string
 	var execArgs []string
 
-	if util.IsTTY(os.Stdin) {
+	// checking only stdin isn't enough: it's attached when launched from gnome!
+	if util.IsTTY(os.Stdin) && util.IsTTY(os.Stdout) {
 		execName = "sudo"
 		execArgs = []string{}
 	} else {
@@ -93,7 +111,7 @@ func ensureWaitRunning(cmd *cobra.Command, args []string) error {
 	}
 
 	// use sh exec to let parent processes exit
-	hkCmd := fmt.Sprint("export HOME=", home, "; exec ", exe, " run wait &")
+	hkCmd := fmt.Sprint(strings.Join(exports, "; "), "; exec ", exe, " run wait &")
 	execArgs = append(execArgs, "sh", "-c", hkCmd)
 
 	execStr := fmt.Sprint(execName, " ", strings.Join(execArgs, " "))
