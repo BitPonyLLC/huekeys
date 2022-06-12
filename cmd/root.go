@@ -97,7 +97,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: atStart,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		if dumpConfig {
-			return dump("config", cmd.OutOrStdout())
+			return dump(cmd, "config")
 		}
 		return cmd.Help()
 	},
