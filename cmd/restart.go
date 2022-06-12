@@ -16,23 +16,23 @@ var restartCmd = &cobra.Command{
 	Use:   "restart",
 	Short: "Tells remote process to restart",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !pidPath.IsRunning() {
+		if !waitPidPath.IsRunning() {
 			return errors.New("no remote process found")
 		}
 
-		if pidPath.IsOurs() {
+		if waitPidPath.IsOurs() {
 			log.Info().Msg("received request to restart")
 			cancelFunc()
 			return nil
 		}
 
-		menuPidpath = pidpath.NewPidPath(viper.GetString("menu.pidpath"), 0666)
-		if !menuPidpath.IsRunning() {
+		menuPidPath = pidpath.NewPidPath(viper.GetString("menu.pidpath"), 0666)
+		if !menuPidPath.IsRunning() {
 			return sendMsgViaIPC(cmd, "quit")
 		}
 
-		log.Info().Str("menu", menuPidpath.String()).Msg("sending restart signal to menu")
-		err := syscall.Kill(menuPidpath.Getpid(), syscall.SIGHUP)
+		log.Info().Str("menu", menuPidPath.String()).Msg("sending restart signal to menu")
+		err := syscall.Kill(menuPidPath.Getpid(), syscall.SIGHUP)
 		if err != nil {
 			return fmt.Errorf("unable to kill menu process: %w", err)
 		}

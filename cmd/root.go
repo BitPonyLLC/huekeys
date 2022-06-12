@@ -49,14 +49,6 @@ func Execute() int {
 	rootCmd.PersistentFlags().String(logDstLabel, "syslog", "write logs to syslog, stdout, stderr, or provide a pathname")
 	viper.BindPFlag(logDstLabel, rootCmd.PersistentFlags().Lookup(logDstLabel))
 
-	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.App.Name+".pid")
-	rootCmd.PersistentFlags().String("pidpath", defaultPidPath, "pathname of the pidfile")
-	viper.BindPFlag("pidpath", rootCmd.PersistentFlags().Lookup("pidpath"))
-
-	defaultSockPath := filepath.Join(os.TempDir(), buildinfo.App.Name+".sock")
-	rootCmd.PersistentFlags().String("sockpath", defaultSockPath, "pathname of the sockfile")
-	viper.BindPFlag("sockpath", rootCmd.PersistentFlags().Lookup("sockpath"))
-
 	rootCmd.PersistentFlags().Int("nice", 10, "the priority level of the process")
 	viper.BindPFlag("nice", rootCmd.PersistentFlags().Lookup("nice"))
 
@@ -95,7 +87,6 @@ var dumpConfig = false
 var logF *os.File
 
 var cancelFunc func()
-var pidPath *pidpath.PidPath
 var ipcServer *ipc.IPCServer
 
 var rootCmd = &cobra.Command{
@@ -118,8 +109,10 @@ func atStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	initialized = true
-	pidPath = pidpath.NewPidPath(viper.GetString("pidpath"), 0666)
 	ipcServer = &ipc.IPCServer{}
+
+	waitPidPath = pidpath.NewPidPath(viper.GetString("wait.pidpath"), 0666)
+	menuPidPath = pidpath.NewPidPath(viper.GetString("menu.pidpath"), 0666)
 
 	viper.SetConfigName(filepath.Base(configPath))
 	viper.SetConfigType("toml")
@@ -160,10 +153,6 @@ func atExit() {
 
 	if logF != nil {
 		logF.Close()
-	}
-
-	if pidPath != nil {
-		pidPath.Release()
 	}
 }
 

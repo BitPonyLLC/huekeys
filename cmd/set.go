@@ -13,7 +13,7 @@ var setCmd = &cobra.Command{
 	Short: "Sets the color and/or brightness of the keyboard",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if pidPath.IsRunning() && !pidPath.IsOurs() {
+		if waitPidPath.IsRunning() && !waitPidPath.IsOurs() {
 			return sendViaIPC(cmd)
 		}
 

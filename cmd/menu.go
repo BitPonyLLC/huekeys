@@ -22,7 +22,7 @@ import (
 )
 
 var patternName string
-var menuPidpath *pidpath.PidPath
+var menuPidPath *pidpath.PidPath
 var restarting = false
 
 func init() {
@@ -30,8 +30,8 @@ func init() {
 	viper.BindPFlag("menu.pattern", menuCmd.Flags().Lookup("pattern"))
 
 	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.App.Name+"-menu.pid")
-	menuCmd.Flags().String("menu-pidpath", defaultPidPath, "pathname of the menu pidfile")
-	viper.BindPFlag("menu.pidpath", menuCmd.Flags().Lookup("menu-pidpath"))
+	menuCmd.Flags().String("pidpath", defaultPidPath, "pathname of the menu pidfile")
+	viper.BindPFlag("menu.pidpath", menuCmd.Flags().Lookup("pidpath"))
 
 	rootCmd.AddCommand(menuCmd)
 }
@@ -40,8 +40,7 @@ var menuCmd = &cobra.Command{
 	Use:   "menu",
 	Short: "Display a menu in the system tray",
 	PreRunE: func(cmd *cobra.Command, _ []string) error {
-		menuPidpath = pidpath.NewPidPath(viper.GetString("menu.pidpath"), 0666)
-		err := menuPidpath.CheckAndSet()
+		err := menuPidPath.CheckAndSet()
 		if err != nil {
 			return err
 		}
@@ -75,11 +74,11 @@ var menuCmd = &cobra.Command{
 			}
 		}
 
-		return menu.Show(cmd.Context(), &log.Logger, viper.GetString("sockpath"))
+		return menu.Show(cmd.Context(), &log.Logger, waitSockPath())
 	},
 	PostRun: func(_ *cobra.Command, _ []string) {
-		if menuPidpath != nil {
-			menuPidpath.Release()
+		if menuPidPath != nil {
+			menuPidPath.Release()
 		}
 
 		if !restarting {
@@ -110,7 +109,7 @@ var menuCmd = &cobra.Command{
 }
 
 func ensureWaitRunning(cmd *cobra.Command) error {
-	if !pidPath.IsOurs() && pidPath.IsRunning() {
+	if !waitPidPath.IsOurs() && waitPidPath.IsRunning() {
 		// wait is already executing in the background
 		return nil
 	}
@@ -156,7 +155,7 @@ func ensureWaitRunning(cmd *cobra.Command) error {
 	}
 
 	// wait a second for socket to be ready...
-	sockPath := viper.GetString("sockpath")
+	sockPath := waitSockPath()
 	for i := 0; i < 10; i += 1 {
 		time.Sleep(50 * time.Millisecond)
 		_, err := os.Stat(sockPath)
