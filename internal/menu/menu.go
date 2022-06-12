@@ -144,102 +144,110 @@ func (m *Menu) listen() {
 		systray.Quit()
 	}()
 
+	for m.process(m.wait()) {
+		// nothing to do, here
+	}
+}
+
+func (m *Menu) wait() int {
 	cases := make([]reflect.SelectCase, len(m.items)+end)
 
-	for {
-		// explicit channels
-		cases[done] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.ctx.Done())}
+	// explicit channels
+	cases[done] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.ctx.Done())}
 
-		cases[errParent] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errParentItem.ClickedCh)}
-		cases[errMsg] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errMsgItem.ClickedCh)}
+	cases[errParent] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errParentItem.ClickedCh)}
+	cases[errMsg] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.errMsgItem.ClickedCh)}
 
-		cases[info] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.infoItem.ClickedCh)}
-		cases[about] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.aboutItem.ClickedCh)}
-		cases[brightness] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.brightnessItem.ClickedCh)}
-		cases[color] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.colorItem.ClickedCh)}
+	cases[info] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.infoItem.ClickedCh)}
+	cases[about] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.aboutItem.ClickedCh)}
+	cases[brightness] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.brightnessItem.ClickedCh)}
+	cases[color] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.colorItem.ClickedCh)}
 
-		cases[pause] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.pauseItem.sysItem.ClickedCh)}
-		cases[off] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.offItem.sysItem.ClickedCh)}
-		cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.quitItem.ClickedCh)}
+	cases[pause] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.pauseItem.sysItem.ClickedCh)}
+	cases[off] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.offItem.sysItem.ClickedCh)}
+	cases[quit] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(m.quitItem.ClickedCh)}
 
-		// dynamic channels
-		for i, it := range m.items {
-			ch := it.sysItem.ClickedCh
-			cases[i+end] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
-		}
+	// dynamic channels
+	for i, it := range m.items {
+		ch := it.sysItem.ClickedCh
+		cases[i+end] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
+	}
 
-		// wait for something to be sent...
-		index, _, ok := reflect.Select(cases)
+	// wait for something to be sent...
+	index, _, _ := reflect.Select(cases)
+	return index
+}
 
-		var it *item
-		if index < end {
-			switch index {
-			case done:
-				return
-			case pause:
-				it = m.pauseItem
-			case off:
-				it = m.offItem
-			case quit:
-				return
-			case errParent:
-				// ignore: just showing the submenu
-			case errMsg:
-				m.clip(m.errMsg)
-				m.clearErr()
-				m.errMsgItem.Uncheck()
-			case info:
-				// ignore: just showing the submenu
-			case about:
-				m.clip(m.AboutInfo)
-				m.aboutItem.Uncheck()
-			case brightness:
-				m.clip(m.brightness)
-				m.brightnessItem.Uncheck()
-			case color:
-				m.clip(m.color)
-				m.colorItem.Uncheck()
-			default:
-				m.log.Fatal().Int("index", index).Msg("missing channel handler")
-				return
-			}
-
-			if it == nil {
-				continue
-			}
-		}
-
-		if !ok {
-			continue
+func (m *Menu) process(index int) bool {
+	var it *item
+	if index < end {
+		switch index {
+		case done:
+			return false
+		case pause:
+			it = m.pauseItem
+		case off:
+			it = m.offItem
+		case quit:
+			return false
+		case errParent:
+			// ignore: just showing the submenu
+		case errMsg:
+			m.clip(m.errMsg)
+			m.clearErr()
+			m.errMsgItem.Uncheck()
+		case info:
+			// ignore: just showing the submenu
+		case about:
+			m.clip(m.AboutInfo)
+			m.aboutItem.Uncheck()
+		case brightness:
+			m.clip(m.brightness)
+			m.brightnessItem.Uncheck()
+		case color:
+			m.clip(m.color)
+			m.colorItem.Uncheck()
+		default:
+			m.log.Fatal().Int("index", index).Msg("missing channel handler")
 		}
 
 		if it == nil {
-			index -= end // adjust for explicit channels
-			it = m.items[index]
+			// nothing to send and event already handled above
+			return true
 		}
-
-		m.log.Debug().Str("cmd", it.msg).Msg("sending")
-
-		resp, err := ipc.Send(m.sockpath, it.msg)
-		if err != nil {
-			m.markAndShowErr(err, it)
-		} else {
-			m.check(it)
-		}
-
-		if resp == "" {
-			continue
-		}
-
-		var ev *zerolog.Event
-		if strings.HasPrefix("ERR:", resp) {
-			ev = m.log.Error()
-		} else {
-			ev = m.log.Debug()
-		}
-
-		ev.Str("cmd", it.msg).Str("resp", resp).Msg("received a response")
 	}
+
+	if it == nil {
+		index -= end // adjust for explicit channels
+		it = m.items[index]
+	}
+
+	m.send(it)
+	return true
+}
+
+func (m *Menu) send(it *item) {
+	m.log.Debug().Str("cmd", it.msg).Msg("sending")
+
+	resp, err := ipc.Send(m.sockpath, it.msg)
+	if err != nil {
+		m.markAndShowErr(err, it)
+	} else {
+		m.check(it)
+	}
+
+	if resp == "" {
+		return
+	}
+
+	var ev *zerolog.Event
+	if strings.HasPrefix("ERR:", resp) {
+		ev = m.log.Error()
+	} else {
+		ev = m.log.Debug()
+	}
+
+	ev.Str("cmd", it.msg).Str("resp", resp).Msg("received a response")
 }
 
 func (m *Menu) check(it *item) {
