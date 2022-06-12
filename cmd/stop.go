@@ -16,8 +16,8 @@ var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Tells remote process to stop any running pattern",
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
-		if pidPath.IsRunning() {
-			if pidPath.IsOurs() {
+		if waitPidPath.IsRunning() {
+			if waitPidPath.IsOurs() {
 				if off {
 					log.Info().Msg("received request to turn keyboard off")
 					err = keyboard.BrightnessFileHandler("0")

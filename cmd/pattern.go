@@ -1,13 +1,20 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
+
+	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/pkg/patterns"
+	"github.com/BitPonyLLC/huekeys/pkg/pidpath"
 	"github.com/BitPonyLLC/huekeys/pkg/util"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+var waitPidPath *pidpath.PidPath
 
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -20,7 +27,6 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 
 	//----------------------------------------
-	addPatternCmd("wait for remote commands", patterns.Get("wait"))
 	addPatternCmd("pulse the keyboard brightness up and down", patterns.Get("pulse"))
 	addPatternCmd("loop through all the colors of the rainbow", patterns.Get("rainbow"))
 	addPatternCmd("constantly change the color to a random selection", patterns.Get("random"))
@@ -28,12 +34,38 @@ func init() {
 	addPatternCmd("monitor the desktop picture and change the keyboard color to match", patterns.Get("desktop"))
 
 	//----------------------------------------
+	waitCmd := addPatternCmd("wait for remote commands", patterns.Get("wait"))
+	// wait needs to manage the pidpath and start the IPC server...
+	waitCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := commonPreRunE(cmd, args); err != nil {
+			return err
+		}
+		if err := waitPidPath.CheckAndSet(); err != nil {
+			return fail(11, err)
+		}
+		return ipcServer.Start(cmd.Context(), &log.Logger, waitSockPath(), rootCmd)
+	}
+	waitCmd.PostRun = func(cmd *cobra.Command, args []string) {
+		if waitPidPath != nil {
+			waitPidPath.Release()
+		}
+	}
+
+	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.App.Name+"-wait.pid")
+	waitCmd.Flags().String("pidpath", defaultPidPath, "pathname of the wait pidfile")
+	viper.BindPFlag("wait.pidpath", waitCmd.Flags().Lookup("pidpath"))
+
+	defaultSockPath := filepath.Join(os.TempDir(), buildinfo.App.Name+"-wait.sock")
+	waitCmd.Flags().String("sockpath", defaultSockPath, "pathname of the wait sockfile")
+	viper.BindPFlag("wait.sockpath", waitCmd.Flags().Lookup("sockpath"))
+
+	//----------------------------------------
 	watchPattern := patterns.Get("watch").(*patterns.WatchPattern)
 	watchCmd := addPatternCmd("watch and report color, brightness, and pattern changes", watchPattern)
 	// watch needs to behave differently from others when run...
 	watchCmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		if pidPath.IsRunning() && !pidPath.IsOurs() {
-			return sendViaIPCForeground(cmd, true)
+		if waitPidPath.IsRunning() && !waitPidPath.IsOurs() {
+			return sendViaIPCForeground(cmd, true, "")
 		}
 		// there may be multiple watch patterns running (i.e. multiple watch
 		// clients) so each one needs to maintain its own Out writer!
@@ -63,33 +95,14 @@ func init() {
 }
 
 func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
-	priority := viper.GetInt("nice")
 	basePattern := pattern.GetBase()
 
 	cmd := &cobra.Command{
-		Use:   pattern.GetBase().Name,
-		Short: short,
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			if err := pidPath.CheckAndSet(); err != nil {
-				if pidPath.IsRunning() {
-					if cmd.Name() == "wait" {
-						return err
-					}
-					log.Debug().Err(err).Msg("ignoring")
-					return nil
-				}
-				return fail(11, err)
-			}
-			if err := util.BeNice(priority); err != nil {
-				return fail(12, err)
-			}
-			if _, ok := pattern.(*patterns.WaitPattern); ok {
-				return ipcServer.Start(cmd.Context(), &log.Logger, viper.GetString("sockpath"), rootCmd)
-			}
-			return nil
-		},
+		Use:     pattern.GetBase().Name,
+		Short:   short,
+		PreRunE: commonPreRunE,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if pidPath.IsRunning() && !pidPath.IsOurs() {
+			if waitPidPath.IsRunning() && !waitPidPath.IsOurs() {
 				return sendViaIPC(cmd)
 			}
 			return pattern.Run(cmd.Context(), &log.Logger)
@@ -105,4 +118,12 @@ func addPatternCmd(short string, pattern patterns.Pattern) *cobra.Command {
 
 	runCmd.AddCommand(cmd)
 	return cmd
+}
+
+func commonPreRunE(cmd *cobra.Command, _ []string) error {
+	return util.BeNice(viper.GetInt("nice"))
+}
+
+func waitSockPath() string {
+	return viper.GetString("wait.sockpath")
 }

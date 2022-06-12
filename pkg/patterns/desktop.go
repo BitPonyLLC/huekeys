@@ -3,11 +3,14 @@ package patterns
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
 	"syscall"
 	"unicode"
 
@@ -16,6 +19,7 @@ import (
 	"github.com/BitPonyLLC/huekeys/pkg/util"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // DesktopPattern is used when setting colors according to the dominant color of
@@ -23,19 +27,83 @@ import (
 type DesktopPattern struct {
 	BasePattern
 
+	env               *preservedEnv
 	backgroundProcess *os.Process
 }
 
 var _ Pattern = (*DesktopPattern)(nil)  // ensures we conform to the Pattern interface
 var _ runnable = (*DesktopPattern)(nil) // ensures we conform to the runnable interface
 
+// DesktopPatternEnv returns an encoded environment variable needed to be passed
+// along when run as root to preserve access to to the parent user's desktop
+// configuration (gsettings).
+func DesktopPatternEnv() (string, error) {
+	pe := preservedEnv{
+		User:       os.Getenv(userKey),
+		RuntimeDir: os.Getenv(runtimeDirKey),
+	}
+
+	var key string
+	if pe.User == "" {
+		key = userKey
+	}
+
+	if pe.RuntimeDir == "" {
+		key = runtimeDirKey
+	}
+
+	var keyErr error
+	if key != "" {
+		keyErr = fmt.Errorf("DesktopPattern requires %s to be set", key)
+	}
+
+	jVal, err := json.Marshal(pe)
+	if err == nil {
+		err = keyErr
+	}
+
+	sVal := base64.RawStdEncoding.EncodeToString([]byte(jVal))
+
+	return desktopPatternKey + "=" + sVal, err
+}
+
+//--------------------------------------------------------------------------------
+// private
+
+type preservedEnv struct {
+	User       string
+	RuntimeDir string
+}
+
+const desktopPatternKey = "DESKTOP_PATTERN"
+const userKey = "USER"
+const runtimeDirKey = "XDG_RUNTIME_DIR"
+
+var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
+
 func init() {
 	register("desktop", &DesktopPattern{}, 0)
 }
 
-var pictureURIMonitorRE = regexp.MustCompile(`^\s*picture-uri(?:-dark)?:\s*'([^']+)'\s*$`)
-
 func (p *DesktopPattern) run() error {
+	if p.env == nil {
+		p.env = &preservedEnv{}
+		dp := os.Getenv(desktopPatternKey)
+		if dp != "" {
+			jVal, err := base64.RawStdEncoding.DecodeString(dp)
+			if err != nil {
+				return fmt.Errorf("unable to decode %s (%s): %w", desktopPatternKey, dp, err)
+			}
+
+			err = json.Unmarshal(jVal, p.env)
+			if err != nil {
+				return fmt.Errorf("unable to unmarshal %s (%s): %w", desktopPatternKey, dp, err)
+			}
+
+			log.Debug().Interface("env", p.env).Msg("using")
+		}
+	}
+
 	colorScheme, err := p.getDesktopSetting("interface", "color-scheme")
 	if err != nil {
 		return err
@@ -74,7 +142,7 @@ func (p *DesktopPattern) run() error {
 	}
 
 	p.backgroundProcess = cmd.Process
-	p.log.Debug().Int("pid", p.backgroundProcess.Pid).Msg("started desktop background monitor")
+	p.log.Debug().Int("pid", p.backgroundProcess.Pid).Str("cmd", cmd.String()).Msg("started")
 
 	go func() {
 		defer util.LogRecover()
@@ -110,31 +178,7 @@ func (p *DesktopPattern) run() error {
 	return nil
 }
 
-func (p *DesktopPattern) newDesktopSettingCmd(action, group, key string) *exec.Cmd {
-	cmdName := "gsettings"
-	args := []string{}
-
-	// if running as root via sudo, need to ask for the user's desktop image...
-	if os.Getuid() == 0 {
-		sudoUser := os.Getenv("SUDO_USER")
-		if sudoUser != "" {
-			cmdName = "sudo"
-			args = []string{"-Eu", sudoUser, "gsettings"}
-			if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
-				// we need access to the user's gnome session in order to look up correct setting values
-				p.log.Fatal().Msg("running as root without user environment: add `-E` when invoking sudo")
-			}
-		}
-	}
-
-	group = "org.gnome.desktop." + group
-	args = append(args, action, group, key)
-	cmd := exec.Command(cmdName, args...)
-	return cmd
-}
-
 func (p *DesktopPattern) getDesktopSetting(group, key string) (string, error) {
-	// TODO: consider using D-Bus directly instead of gsettings...
 	val, err := p.newDesktopSettingCmd("get", group, key).Output()
 	if err != nil {
 		p.log.Err(err).Str("group", group).Str("key", key).Msg("can't get setting value")
@@ -143,6 +187,20 @@ func (p *DesktopPattern) getDesktopSetting(group, key string) (string, error) {
 
 	val = bytes.TrimFunc(val, func(r rune) bool { return unicode.IsSpace(r) || r == '\'' })
 	return string(val), nil
+}
+
+func (p *DesktopPattern) newDesktopSettingCmd(action, group, key string) *exec.Cmd {
+	fullGroup := "org.gnome.desktop." + group
+	cmd := "gsettings"
+	args := []string{action, fullGroup, key}
+
+	if p.env.User != "" {
+		shCmd := p.env.String() + cmd + " " + strings.Join(args, " ")
+		cmd = "sudo"
+		args = []string{"-u", p.env.User, "sh", "-c", shCmd}
+	}
+
+	return exec.Command(cmd, args...)
 }
 
 func (p *DesktopPattern) setColorFrom(u string) error {
@@ -160,6 +218,7 @@ func (p *DesktopPattern) setColorFrom(u string) error {
 
 	return keyboard.ColorFileHandler(color)
 }
+
 func (p *DesktopPattern) stopDesktopBackgroundMonitor() {
 	if p.backgroundProcess != nil {
 		proc := p.backgroundProcess
@@ -170,4 +229,14 @@ func (p *DesktopPattern) stopDesktopBackgroundMonitor() {
 			p.log.Err(err).Int("pid", proc.Pid).Msg("can't kill desktop background monitor")
 		}
 	}
+}
+
+func (e *preservedEnv) String() string {
+	str := ""
+
+	if e.RuntimeDir != "" {
+		str += runtimeDirKey + "=" + e.RuntimeDir + " "
+	}
+
+	return str
 }

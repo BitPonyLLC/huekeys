@@ -11,8 +11,8 @@ var quitCmd = &cobra.Command{
 	Use:   "quit",
 	Short: "Tells remote process to quit",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if pidPath.IsRunning() {
-			if pidPath.IsOurs() {
+		if waitPidPath.IsRunning() {
+			if waitPidPath.IsOurs() {
 				log.Info().Msg("received request to quit")
 				cancelFunc()
 				return nil

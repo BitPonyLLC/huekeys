@@ -8,16 +8,22 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 func sendViaIPC(cmd *cobra.Command) error {
-	return sendViaIPCForeground(cmd, false)
+	return sendViaIPCForeground(cmd, false, "")
 }
 
-func sendViaIPCForeground(cmd *cobra.Command, foreground bool) error {
-	msg := strings.Join(os.Args[1:], " ")
-	log.Debug().Int("pid", pidPath.Getpid()).Str("cmd", msg).Msg("sending")
+func sendMsgViaIPC(cmd *cobra.Command, msg string) error {
+	return sendViaIPCForeground(cmd, false, msg)
+}
+
+func sendViaIPCForeground(cmd *cobra.Command, foreground bool, msg string) error {
+	if msg == "" {
+		msg = strings.Join(os.Args[1:], " ")
+	}
+
+	log.Debug().Int("pid", waitPidPath.Getpid()).Str("cmd", msg).Msg("sending")
 
 	client := &ipc.Client{
 		Foreground: foreground,
@@ -34,7 +40,7 @@ func sendViaIPCForeground(cmd *cobra.Command, foreground bool) error {
 		}()
 	}
 
-	err := client.Send(viper.GetString("sockpath"), msg)
+	err := client.Send(waitSockPath(), msg)
 	if err != nil {
 		return err
 	}

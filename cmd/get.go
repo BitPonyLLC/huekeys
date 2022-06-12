@@ -14,7 +14,7 @@ var getCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pattern := patterns.GetRunning()
 		if pattern == nil {
-			if pidPath.IsRunning() && !pidPath.IsOurs() {
+			if waitPidPath.IsRunning() && !waitPidPath.IsOurs() {
 				return sendViaIPC(cmd)
 			}
 		} else {
