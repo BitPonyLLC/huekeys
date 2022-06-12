@@ -141,9 +141,13 @@ func ensureWaitRunning(cmd *cobra.Command) error {
 		execArgs = []string{"--user", "root"}
 	}
 
+	config := viper.GetViper().ConfigFileUsed()
+	if config != "" {
+		config = " --config " + config
+	}
+
 	// use sh exec to let parent processes exit
-	hkCmd := fmt.Sprint("export ", dpEnv, "; exec ", exe,
-		" --config ", viper.GetViper().ConfigFileUsed(), " run wait &")
+	hkCmd := fmt.Sprint("export ", dpEnv, "; exec ", exe, config, " run wait &")
 	execArgs = append(execArgs, "sh", "-c", hkCmd)
 
 	execStr := fmt.Sprint(execName, " ", strings.Join(execArgs, " "))
