@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"syscall"
 
@@ -17,7 +16,8 @@ var restartCmd = &cobra.Command{
 	Short: "Tells remote process to restart",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !waitPidPath.IsRunning() {
-			return errors.New("no remote process found")
+			// don't fail here as this is invoked by post_install
+			return fail(0, "no remote process found")
 		}
 
 		if waitPidPath.IsOurs() {

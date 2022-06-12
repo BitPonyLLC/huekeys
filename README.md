@@ -7,7 +7,7 @@
   <a href="https://godoc.org/github.com/BitPonyLLC/huekeys">
     <img src="https://godoc.org/github.com/BitPonyLLC/huekeys?status.svg" alt="GoDoc">
   </a>
-  <a href="https://opensource.org/licenses/MIT">
+  <a href="LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
   </a>
   <a href="https://github.com/BitPonyLLC/huekeys/releases/latest">
