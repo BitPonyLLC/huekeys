@@ -17,8 +17,16 @@ find_latest_semver() {
 }
 
 increment_ver() {
-  find_latest_semver | awk -F. -v a="$1" -v b="$2" -v c="$3" \
-      '{printf("%d.%d.%d", $1+a, $2+b , $3+c)}'
+  if [ $1 -gt 0 ]; then
+    find_latest_semver | awk -F. -v a="$1" \
+        '{printf("%d.0.0", $1+a)}'
+  elif [ $2 -gt 0 ]; then
+    find_latest_semver | awk -F. -v a="$1" -v b="$2" \
+        '{printf("%d.%d.0", $1+a, $2+b)}'
+  else
+    find_latest_semver | awk -F. -v a="$1" -v b="$2" -v c="$3" \
+        '{printf("%d.%d.%d", $1+a, $2+b , $3+c)}'
+  fi
 }
 
 bump() {
@@ -41,7 +49,7 @@ usage() {
   echo
   echo "Options:"
   echo "  -l  list the latest tagged version instead of bumping."
-  echo "  -p  prefix [to be] used for the semver tags."
+  echo "  -p  prefix [to be] used for the semver tags."
   exit 1
 }
 
