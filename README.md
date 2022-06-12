@@ -34,6 +34,10 @@ Huekeys is a fun application that makes it easy to adjust your System76 keyboard
 
   ![systray menu](img/menu-small.png)
 
+### Questions?
+
+If you have any questions, please hop into our [Discord!](https://discord.gg/remmt4cx27)
+
 ### Installation
 
 Choose one of the following that works best for you:
