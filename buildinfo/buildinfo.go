@@ -3,6 +3,7 @@ package buildinfo
 import (
 	_ "embed"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -13,7 +14,12 @@ import (
 type AppInfo struct {
 	buildInfo
 
+	ExePath string `yaml:"-"`
+
 	Name            string `yaml:"name"`
+	URL             string `yaml:"url"`
+	ReverseDNS      string `yaml:"reverse_dns"`
+	Vendor          string `yaml:"vendor"`
 	Description     string `yaml:"description"`
 	FullDescription string `yaml:"full_description"`
 }
@@ -36,7 +42,14 @@ var app []byte
 var build []byte
 
 func init() {
-	err := yaml.Unmarshal(app, &App)
+	var err error
+
+	App.ExePath, err = os.Executable()
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to determine executable pathname")
+	}
+
+	err = yaml.Unmarshal(app, &App)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to parse embedded app info")
 	}
