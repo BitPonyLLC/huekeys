@@ -34,6 +34,7 @@ func init() {
 	addPatternCmd("monitor the desktop picture and change the keyboard color to match", patterns.Get("desktop"))
 
 	//----------------------------------------
+	desktopEnv := ""
 	waitCmd := addPatternCmd("wait for remote commands", patterns.Get("wait"))
 	// wait needs to manage the pidpath and start the IPC server...
 	waitCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
@@ -42,6 +43,12 @@ func init() {
 		}
 		if err := waitPidPath.CheckAndSet(); err != nil {
 			return fail(11, err)
+		}
+		if desktopEnv != "" {
+			desktopPattern := patterns.Get("desktop").(*patterns.DesktopPattern)
+			if err := desktopPattern.SetEnv(desktopEnv); err != nil {
+				return err
+			}
 		}
 		return ipcServer.Start(cmd.Context(), &log.Logger, waitSockPath(), rootCmd)
 	}
@@ -58,6 +65,9 @@ func init() {
 	defaultSockPath := filepath.Join(os.TempDir(), buildinfo.App.Name+"-wait.sock")
 	waitCmd.Flags().String("sockpath", defaultSockPath, "pathname of the wait sockfile")
 	viper.BindPFlag("wait.sockpath", waitCmd.Flags().Lookup("sockpath"))
+
+	waitCmd.Flags().StringVar(&desktopEnv, "env", desktopEnv, "environment to set for desktop pattern")
+	waitCmd.Flags().MarkHidden("env") // only used by menu
 
 	//----------------------------------------
 	watchPattern := patterns.Get("watch").(*patterns.WatchPattern)

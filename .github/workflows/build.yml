@@ -42,5 +42,5 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_JOB_NAME: "${{ steps.release.outputs.id }}: ${{ steps.release.outputs.url }}"
+          GITHUB_JOB_NAME: "${{ steps.release.outputs.url }}"
           GITHUB_JOB_STATUS: ${{ job.status }}
