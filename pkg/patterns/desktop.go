@@ -67,6 +67,9 @@ func DesktopPatternEnv() (string, error) {
 	return desktopPatternKey + "=" + sVal, err
 }
 
+// SetEnv is invoked when the DesktopPattern needs additional environment values
+// to pass along to the gsettings process (e.g. to ensure it monitors the right
+// user desktop).
 func (p *DesktopPattern) SetEnv(env string) error {
 	p.env = &preservedEnv{}
 

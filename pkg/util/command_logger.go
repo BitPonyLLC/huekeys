@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+// CommandLogger is used when newline-terminated output should be logged
+// (e.g. from exec.Command).
 type CommandLogger struct {
 	Log func(string)
 
@@ -15,6 +17,8 @@ type CommandLogger struct {
 
 var _ io.WriteCloser = (*CommandLogger)(nil) // ensures we conform to the WriteCloser interface
 
+// Write implements io.Writer by buffering locally and logging each
+// newline-terminated string found in the buffer.
 func (cl *CommandLogger) Write(data []byte) (n int, err error) {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
@@ -41,6 +45,8 @@ func (cl *CommandLogger) Write(data []byte) (n int, err error) {
 	}
 }
 
+// Close implments io.WriteCloser by flushing any remaining string in the local
+// buffer out to the logger and resets the buffer.
 func (cl *CommandLogger) Close() error {
 	if cl.buf.Len() > 0 {
 		cl.Log(cl.buf.String()) // flush
