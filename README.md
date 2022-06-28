@@ -53,7 +53,8 @@ Choose one of the following that works best for you:
 - Download from [the Releases page](https://github.com/BitPonyLLC/huekeys/releases/latest)
 
 After installation, note the following:
-- If you did *NOT* use Homebrew, you *may* need to install a library:
+
+- If you did _NOT_ use Homebrew, you _may_ need to install a library:
   - If you see this error…
     ```
     error while loading shared libraries: libayatana-appindicator3.so.1: cannot open shared object file: No such file or directory
@@ -106,9 +107,9 @@ $ huekeys menu
 
 Unless there's already another `huekeys` "wait" process already running, you will be prompted for your `sudo` password to run a background process that will listen for commands from the menu app. Once running, simply choose the pattern you'd like to have running!
 
-Optionally, you can also open the *Info* section to see the currently set color and brightness values. Clicking on them will copy those values into your clipboard in case you'd like to use or remember a specific setting for later.
+Optionally, you can also open the _Info_ section to see the currently set color and brightness values. Clicking on them will copy those values into your clipboard in case you'd like to use or remember a specific setting for later.
 
-To temporarily stop a pattern, select the *Pause* item, or, to completely turn the keyboard lights off, select *Off*.
+To temporarily stop a pattern, select the _Pause_ item, or, to completely turn the keyboard lights off, select _Off_.
 
 ### Remote Control
 
@@ -126,17 +127,16 @@ Feel free to change the values to better suit your preferences.
 
 NOTE: The configuration file is monitored and when changed, most values will be adjusted in any live running process (e.g. you can change the log level without restarting the process).
 
-|       Global&nbsp;Key       |       Default       | Acceptable Values                                                                                                                          | Description                                                                                                                  |
-| :-------------------------: | :-----------------: | :----------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
-| <code>log&#x2011;dst</code> |      'syslog'       | <ul><li>'syslog'</li><li>'stdout'</li><li>'stderr'</li><li>'/path/to/file.log'</li></ul>                                                   | Indicate where logs should be written.                                                                                       |
-| <code>log&#x2011;lvl</code> |       'info'        | <ul><li>'trace'</li><li>'debug'</li><li>'info'</li><li>'warn'</li><li>'error'</li><li>'fatal'</li><li>'panic'</li><li>'disabled'</li></ul> | Indicate level of logging.                                                                                                   |
-|           `nice`            |         10          | -20 to 19                                                                                                                                  | Run with an adjusted priority, values range from -20 (most favorable to the process) to 19 (least favorable to the process). |
-|          `pidpath`          | '/tmp/huekeys.pid'  | '/path/to/file.pid'                                                                                                                        | Indicate where to store the process ID (needed for menu to communicate with background process).                             |
-|         `sockpath`          | '/tmp/huekeys.sock' | '/path/to/file.sock'                                                                                                                       | Indicate where to create the socket file (needed for menu to communicate with background process).                           |
+|       Global&nbsp;Key       | Default  | Acceptable Values                                                                                                                          | Description                                                                                                                  |
+| :-------------------------: | :------: | :----------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
+| <code>log&#x2011;dst</code> | 'syslog' | <ul><li>'syslog'</li><li>'stdout'</li><li>'stderr'</li><li>'/path/to/file.log'</li></ul>                                                   | Indicate where logs should be written.                                                                                       |
+| <code>log&#x2011;lvl</code> |  'info'  | <ul><li>'trace'</li><li>'debug'</li><li>'info'</li><li>'warn'</li><li>'error'</li><li>'fatal'</li><li>'panic'</li><li>'disabled'</li></ul> | Indicate level of logging.                                                                                                   |
+|           `nice`            |    10    | -20 to 19                                                                                                                                  | Run with an adjusted priority, values range from -20 (most favorable to the process) to 19 (least favorable to the process). |
 
-| Menu&nbsp;Key | Default | Acceptable Values                    | Description                                              |
-| :-----------: | :-----: | :----------------------------------- | :------------------------------------------------------- |
-|   `pattern`   |   ''    | Any pattern name (see `huekeys run`) | Indicate the pattern to begin when the menu is launched. |
+| Menu&nbsp;Key |         Default         | Acceptable Values                    | Description                                                 |
+| :-----------: | :---------------------: | :----------------------------------- | :---------------------------------------------------------- |
+|   `pattern`   |           ''            | Any pattern name (see `huekeys run`) | Indicate the pattern to begin when the menu is launched.    |
+|   `pidpath`   | '/tmp/huekeys-menu.pid' | '/path/to/file.pid'                  | Indicate where to store the process ID of the menu process. |
 
 | CPU&nbsp;Key | Default | Acceptable Values                                                           | Description                                                                           |
 | :----------: | :-----: | :-------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
@@ -161,6 +161,12 @@ NOTE: The configuration file is monitored and when changed, most values will be 
 |                  `idle`                   |   ''    | Any pattern name (see `huekeys run`)                                        | Indicate the pattern to begin when keys have not been pressed for the configured `idle-period`.                                               |
 |      <code>idle&#x2011;period</code>      |  '30s'  | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate the amount of time to wait between the last key press and when the `idle` pattern is started.                                        |
 | <code>input&#x2011;event&#x2011;id</code> |   ''    |                                                                             | Indicate which input device to use for monitoring the keystrokes (default is to find the first keyboard listed in `/proc/bus/input/devices`). |
+
+| Wait&nbsp;Key |         Default          | Acceptable Values                                                           | Description                                                                                        |
+| :-----------: | :----------------------: | :-------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+|   `monitor`   |           '0s'           | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate when to monitor changes made to color/brightness outside of the wait process.             |
+|   `pidpath`   | '/tmp/huekeys-wait.pid'  | '/path/to/file.pid'                                                         | Indicate where to store the process ID of the wait process.                                        |
+|  `sockpath`   | '/tmp/huekeys-wait.sock' | '/path/to/file.sock'                                                        | Indicate where to create the socket file (needed for menu to communicate with background process). |
 
 ## Attribution
 
