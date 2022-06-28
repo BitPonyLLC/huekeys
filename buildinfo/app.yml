@@ -1,4 +1,7 @@
 name: huekeys
+reverse_dns: com.bitpony.huekeys
+url: https://github.com/BitPonyLLC/huekeys
+vendor: BitPony, LLC
 description: Control the keyboard backlight on System76 laptops
 full_description: >
   Huekeys is a fun application that makes it easy to adjust your System76

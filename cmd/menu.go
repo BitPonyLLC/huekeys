@@ -23,6 +23,7 @@ import (
 
 var patternName string
 var menuPidPath *pidpath.PidPath
+var delay = time.Duration(0)
 var restarting = false
 
 func init() {
@@ -32,6 +33,8 @@ func init() {
 	defaultPidPath := filepath.Join(os.TempDir(), buildinfo.App.Name+"-menu.pid")
 	menuCmd.Flags().String("pidpath", defaultPidPath, "pathname of the menu pidfile")
 	viper.BindPFlag("menu.pidpath", menuCmd.Flags().Lookup("pidpath"))
+
+	menuCmd.Flags().DurationVar(&delay, "delay", delay, "delay before asking for sudo permission")
 
 	rootCmd.AddCommand(menuCmd)
 }
@@ -114,10 +117,13 @@ func ensureWaitRunning(cmd *cobra.Command) error {
 		return nil
 	}
 
-	exe, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("unable to determine executable pathname: %w", err)
+	if delay > time.Second {
+		log.Debug().Dur("delay", delay).Msg("waiting")
 	}
+
+	// this is useful when launching at start of X session to let the
+	// windowing env get set up
+	time.Sleep(delay)
 
 	dpEnv, err := patterns.DesktopPatternEnv()
 	if err != nil {
@@ -141,27 +147,50 @@ func ensureWaitRunning(cmd *cobra.Command) error {
 		execArgs = []string{"--user", "root"}
 	}
 
+	execArgs = append(execArgs, buildinfo.App.ExePath)
+
 	config := viper.GetViper().ConfigFileUsed()
 	if config != "" {
-		config = " --config " + config
+		execArgs = append(execArgs, "--config", config)
 	}
 
-	// use sh exec to let parent processes exit
-	hkCmd := fmt.Sprint("export ", dpEnv, "; exec ", exe, config, " run wait &")
-	execArgs = append(execArgs, "sh", "-c", hkCmd)
+	execArgs = append(execArgs, "run", "wait", "--env", dpEnv)
 
 	execStr := fmt.Sprint(execName, " ", strings.Join(execArgs, " "))
 	log.Debug().Str("cmd", execStr).Msg("")
 
-	err = exec.Command(execName, execArgs...).Run()
+	subCmd := exec.Command(execName, execArgs...)
+
+	// send out/err to logs...
+	subLogger := log.With().Str("cmd", execName).Logger()
+	subCmd.Stdout = &util.CommandLogger{Log: func(msg string) { subLogger.Info().Msg(msg) }}
+	subCmd.Stderr = &util.CommandLogger{Log: func(msg string) { subLogger.Error().Msg(msg) }}
+
+	err = subCmd.Start()
 	if err != nil {
 		return fmt.Errorf("unable to run %s: %w", execStr, err)
 	}
 
-	// wait a second for socket to be ready...
+	var subCmdErr error
+
+	go func() {
+		stat, err := subCmd.Process.Wait()
+		if err == nil {
+			subCmdErr = fmt.Errorf("wait process exited: %s", stat)
+		} else {
+			subCmdErr = fmt.Errorf("unable to stat the background wait process: %w", err)
+		}
+	}()
+
+	// wait for user to grant permission to run...
+	const delay = 50 * time.Millisecond
 	sockPath := waitSockPath()
-	for i := 0; i < 10; i += 1 {
-		time.Sleep(50 * time.Millisecond)
+	for timeout := time.Minute; timeout > 0; timeout -= delay {
+		if subCmdErr != nil {
+			return subCmdErr
+		}
+
+		time.Sleep(delay)
 		_, err := os.Stat(sockPath)
 		if err == nil {
 			return nil

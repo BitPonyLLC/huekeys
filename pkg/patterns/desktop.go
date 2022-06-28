@@ -67,6 +67,34 @@ func DesktopPatternEnv() (string, error) {
 	return desktopPatternKey + "=" + sVal, err
 }
 
+// SetEnv is invoked when the DesktopPattern needs additional environment values
+// to pass along to the gsettings process (e.g. to ensure it monitors the right
+// user desktop).
+func (p *DesktopPattern) SetEnv(env string) error {
+	p.env = &preservedEnv{}
+
+	if env == "" {
+		return nil
+	}
+
+	if strings.HasPrefix(env, desktopPatternKey) {
+		env = env[len(desktopPatternKey)+1:]
+	}
+
+	jVal, err := base64.RawStdEncoding.DecodeString(env)
+	if err != nil {
+		return fmt.Errorf("unable to decode %s (%s): %w", desktopPatternKey, env, err)
+	}
+
+	err = json.Unmarshal(jVal, p.env)
+	if err != nil {
+		return fmt.Errorf("unable to unmarshal %s (%s): %w", desktopPatternKey, env, err)
+	}
+
+	log.Debug().Interface("env", p.env).Msg("using")
+	return nil
+}
+
 //--------------------------------------------------------------------------------
 // private
 
@@ -87,21 +115,7 @@ func init() {
 
 func (p *DesktopPattern) run() error {
 	if p.env == nil {
-		p.env = &preservedEnv{}
-		dp := os.Getenv(desktopPatternKey)
-		if dp != "" {
-			jVal, err := base64.RawStdEncoding.DecodeString(dp)
-			if err != nil {
-				return fmt.Errorf("unable to decode %s (%s): %w", desktopPatternKey, dp, err)
-			}
-
-			err = json.Unmarshal(jVal, p.env)
-			if err != nil {
-				return fmt.Errorf("unable to unmarshal %s (%s): %w", desktopPatternKey, dp, err)
-			}
-
-			log.Debug().Interface("env", p.env).Msg("using")
-		}
+		p.SetEnv(os.Getenv(desktopPatternKey))
 	}
 
 	colorScheme, err := p.getDesktopSetting("interface", "color-scheme")

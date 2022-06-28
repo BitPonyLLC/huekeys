@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"text/template"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
 	"github.com/BitPonyLLC/huekeys/pkg/ipc"
@@ -78,6 +80,10 @@ func Execute() int {
 
 const logDstLabel = "log-dst"
 const minimalTimeFormat = "15:04:05.000"
+const policyConfigPath = "/usr/share/polkit-1/actions"
+
+//go:embed pkexec_policy.xml
+var policyConfigTemplate string
 
 var failureCode = 1
 var initialized = false
@@ -143,7 +149,7 @@ func atStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	log.Debug().Str("file", viper.ConfigFileUsed()).Msg("config")
-	return nil
+	return checkPolicyConfig()
 }
 
 func atExit() {
@@ -220,6 +226,54 @@ func setupLogging(cmd *cobra.Command, logDst string) error {
 		log.Logger = zerolog.New(logWriter)
 	}
 
+	return nil
+}
+
+func checkPolicyConfig() error {
+	if os.Getuid() != 0 {
+		return nil
+	}
+
+	policyPath := filepath.Join(policyConfigPath, buildinfo.App.ReverseDNS+".policy")
+	cfgF, err := os.OpenFile(policyPath, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return fmt.Errorf("unable to open %s: %w", policyPath, err)
+	}
+	defer cfgF.Close()
+
+	policyStat, err := cfgF.Stat()
+	if err != nil {
+		return fmt.Errorf("unable to stat %s: %w", policyPath, err)
+	}
+
+	if policyStat.Size() > 0 {
+		exeStat, err := os.Stat(buildinfo.App.ExePath)
+		if err != nil {
+			return fmt.Errorf("unable to stat %s: %w", buildinfo.App.ExePath, err)
+		}
+
+		if exeStat.ModTime().Before(policyStat.ModTime()) {
+			log.Debug().Str("policy", policyPath).Msg("unchanged")
+			return nil
+		}
+	}
+
+	err = cfgF.Truncate(0)
+	if err != nil {
+		return fmt.Errorf("unable to truncate %s: %w", policyPath, err)
+	}
+
+	tmpl, err := template.New("policy-config").Parse(policyConfigTemplate)
+	if err != nil {
+		return fmt.Errorf("unable to parse policy template: %w", err)
+	}
+
+	err = tmpl.Execute(cfgF, buildinfo.App)
+	if err != nil {
+		return fmt.Errorf("unable to execute policy template: %w", err)
+	}
+
+	log.Debug().Str("policy", policyPath).Msg("updated")
 	return nil
 }
 
