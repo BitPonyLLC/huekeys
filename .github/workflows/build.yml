@@ -11,9 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEBIAN_FRONTEND: noninteractive
+    outputs:
+      appname: ${{ steps.app.outputs.name }}
 
     steps:
-      - run: sudo apt-get -qy install --no-install-recommends gcc libgtk-3-dev libayatana-appindicator3-dev
+      - run: >
+          sudo apt-get -qy install --no-install-recommends
+          gcc libgtk-3-dev libayatana-appindicator3-dev
 
       - uses: actions/setup-go@v3
         with:
@@ -21,24 +25,46 @@ jobs:
 
       - uses: actions/checkout@v3
 
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - run: make
 
       - id: app
         run: echo '::set-output name=name::'$(make appname)
 
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ steps.app.outputs.name }}-${{ github.sha }}
+          path: ${{ steps.app.outputs.name }}
+          retention-days: 1
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.build.outputs.appname }}-${{ github.sha }}
+          path: ${{ needs.build.outputs.appname }}
+
       - id: release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ steps.app.outputs.name }}
-        if: startsWith(github.ref, 'refs/tags/')
+          files: ${{ needs.build.outputs.appname }}
 
       - run: gh workflow run release -R BitPonyLLC/homebrew-tap
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_BRADRF_PAT }}
-        if: startsWith(github.ref, 'refs/tags/')
 
       - uses: th0th/notify-discord@v0.4.1
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GITHUB_ACTOR: ${{ github.actor }}

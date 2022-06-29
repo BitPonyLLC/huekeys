@@ -24,7 +24,7 @@ tag-%:
 	git pull
 	git push
 	./scripts/bump.sh -p v $*
-	echo -n "git push origin v$$(./scripts/bump.sh -p v -l)" | xclip -sel clip -i
+	echo -n "git push --atomic origin master v$$(./scripts/bump.sh -p v -l)" | xclip -sel clip -i
 
 appname:
 	@echo -n $(APPNAME)
