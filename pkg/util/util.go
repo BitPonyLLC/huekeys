@@ -6,8 +6,7 @@ import (
 	"os"
 	"syscall"
 
-	"golang.org/x/crypto/ssh/terminal"
-
+	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -37,5 +36,5 @@ func BeNice(priority int) error {
 
 // IsTTY determines if a file handle is attached to a TTY.
 func IsTTY(f *os.File) bool {
-	return terminal.IsTerminal(int(f.Fd()))
+	return isatty.IsTerminal(f.Fd())
 }
