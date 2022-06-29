@@ -21,8 +21,11 @@ import (
 const brightnessPrefix = "Brightness: "
 const colorPrefix = "Color: "
 
-//go:embed tray_icon.png
-var trayIcon []byte
+//go:embed tray_icon_on.png
+var trayIconOn []byte
+
+//go:embed tray_icon_off.png
+var trayIconOff []byte
 
 type Menu struct {
 	PatternName string
@@ -94,7 +97,7 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	m.log = log
 	m.sockpath = sockPath
 
-	systray.SetIcon(trayIcon)
+	systray.SetIcon(trayIconOff)
 
 	systray.AddSeparator()
 	m.errParentItem = systray.AddMenuItem("Error", "")
@@ -294,8 +297,10 @@ func (m *Menu) update(line string) bool {
 		m.brightnessItem.SetTitle(brightnessPrefix + val)
 		bn, _ := strconv.Atoi(val)
 		if bn == 0 {
+			systray.SetIcon(trayIconOff)
 			m.check(m.offItem)
 		} else {
+			systray.SetIcon(trayIconOn)
 			m.offItem.sysItem.Uncheck()
 		}
 	case "c":
