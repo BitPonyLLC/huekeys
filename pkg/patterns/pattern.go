@@ -11,7 +11,9 @@ import (
 
 	"github.com/BitPonyLLC/huekeys/pkg/events"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
+
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // Pattern is the expected interface all patterns implement.
@@ -143,6 +145,10 @@ func register(name string, p Pattern, delay time.Duration) {
 	base := p.GetBase()
 	base.Name = name
 	base.defaultDelay = delay
+
+	// always provide a default logger
+	plog := log.With().Str("pattern", name).Logger()
+	base.log = &plog
 
 	if r, ok := p.(runnable); ok {
 		base.self = r

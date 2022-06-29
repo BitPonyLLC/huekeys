@@ -19,7 +19,6 @@ import (
 	"github.com/BitPonyLLC/huekeys/pkg/util"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 // DesktopPattern is used when setting colors according to the dominant color of
@@ -91,7 +90,7 @@ func (p *DesktopPattern) SetEnv(env string) error {
 		return fmt.Errorf("unable to unmarshal %s (%s): %w", desktopPatternKey, env, err)
 	}
 
-	log.Debug().Interface("env", p.env).Msg("using")
+	p.log.Debug().Interface("env", p.env).Msg("using")
 	return nil
 }
 
