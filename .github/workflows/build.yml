@@ -50,7 +50,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v3
+      - id: download
+        uses: actions/download-artifact@v3
         with:
           name: ${{ needs.build.outputs.appname }}-${{ github.sha }}
           path: ${{ needs.build.outputs.appname }}
@@ -58,7 +59,7 @@ jobs:
       - id: release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ needs.build.outputs.appname }}
+          files: ${{ steps.download.outputs.download-path }}
 
       - run: gh workflow run release -R BitPonyLLC/homebrew-tap
         env:
