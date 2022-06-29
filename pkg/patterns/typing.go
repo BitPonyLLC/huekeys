@@ -15,6 +15,8 @@ import (
 
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/BitPonyLLC/huekeys/pkg/util"
+
+	"github.com/rs/zerolog"
 )
 
 // TypingPattern is used when changing when changing colors from "cold" (blue) to "hot" (red)
@@ -22,6 +24,9 @@ import (
 // the amount of time to wait between evaluating the number of keys recently pressed.
 type TypingPattern struct {
 	BasePattern
+
+	lastReportAt time.Time
+	lastReadAt   time.Time
 }
 
 // DefaultIdlePeriod is the amount of time the TypingPattern will wait before
@@ -43,6 +48,8 @@ const IdlePeriodLabel = "idle-period"
 
 var _ Pattern = (*TypingPattern)(nil)  // ensures we conform to the Pattern interface
 var _ runnable = (*TypingPattern)(nil) // ensures we conform to the runnable interface
+
+const traceReportPeriod = 10 * time.Second
 
 // String is a customized version of the BasePattern String that also includes
 // information about the idle settings.
@@ -107,6 +114,16 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 		i := int(atomic.LoadInt32(keyPressCount))
 		if i >= colorsLen {
 			i = colorsLen - 1
+		}
+
+		if p.log.GetLevel() == zerolog.TraceLevel && time.Since(p.lastReportAt) > traceReportPeriod {
+			p.lastReportAt = time.Now()
+			var idleVal time.Time
+			if idleAt != nil {
+				idleVal = *idleAt
+			}
+			p.log.Trace().Time("idle-at", idleVal).Time("read-at", p.lastReadAt).
+				Int("count", i).Int("last-index", lastIndex).Msg("report")
 		}
 
 		// don't bother setting the same value and wait for 2 keypresses to
@@ -188,6 +205,12 @@ func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int
 			return
 		}
 
+		if p.log.GetLevel() == zerolog.TraceLevel {
+			sec := binary.LittleEndian.Uint64(buf[0:8])
+			usec := binary.LittleEndian.Uint64(buf[8:16])
+			p.lastReadAt = time.Unix(int64(sec), int64(usec)*1000)
+		}
+
 		// typ is the kind of event being reported
 		typ := binary.LittleEndian.Uint16(buf[16:18])
 
@@ -201,9 +224,6 @@ func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int
 			// in this context, code indicates what key was pressed
 			code := binary.LittleEndian.Uint16(buf[18:20])
 			if p.countAllKeys() || isPrintable(code) {
-				// sec := binary.LittleEndian.Uint64(buf[0:8])
-				// usec := binary.LittleEndian.Uint64(buf[8:16])
-				// ts := time.Unix(int64(sec), int64(usec)*1000)
 				atomic.AddInt32(keyPressCount, 1)
 			}
 		}
