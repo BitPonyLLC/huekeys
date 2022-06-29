@@ -107,6 +107,8 @@ func ColorFileHandler(color string) error {
 		return errors.New("can't get a valid sysfs leds path")
 	}
 
+	monitoredColor.Store(color)
+
 	if presetColor, exists := presetColors[color]; exists {
 		color = presetColor.GetColorInHex()
 	} else if color == RandomColor {
@@ -138,8 +140,14 @@ func ColorFileHandler(color string) error {
 }
 
 // BrightnessFileHandler writes a hex value to brightness and returns the bytes written.
-func BrightnessFileHandler(c string) error {
+func BrightnessFileHandler(brightness string) error {
 	sys := getSysPath()
+	if sys.Path == "" {
+		return errors.New("can't get a valid sysfs leds path")
+	}
+
+	monitoredBrightness.Store(brightness)
+
 	p := fmt.Sprintf("%v/brightness", sys.Path)
 
 	f, err := os.OpenFile(p, os.O_RDWR, 0755)
@@ -148,12 +156,12 @@ func BrightnessFileHandler(c string) error {
 	}
 	defer f.Close()
 
-	_, err = f.WriteString(c)
+	_, err = f.WriteString(brightness)
 	if err != nil {
 		return fmt.Errorf("can't set brightness value (%s): %w", p, err)
 	}
 
-	Events.Emit(ChangeEvent{Brightness: c})
+	Events.Emit(ChangeEvent{Brightness: brightness})
 	return nil
 }
 

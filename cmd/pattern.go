@@ -66,6 +66,9 @@ func init() {
 	waitCmd.Flags().String("sockpath", defaultSockPath, "pathname of the wait sockfile")
 	viper.BindPFlag("wait.sockpath", waitCmd.Flags().Lookup("sockpath"))
 
+	waitCmd.Flags().Duration(patterns.MonitorLabel, 0, "monitor and preserve set color and/or brightness")
+	viper.BindPFlag("wait."+patterns.MonitorLabel, waitCmd.Flags().Lookup(patterns.MonitorLabel))
+
 	waitCmd.Flags().StringVar(&desktopEnv, "env", desktopEnv, "environment to set for desktop pattern")
 	waitCmd.Flags().MarkHidden("env") // only used by menu
 
