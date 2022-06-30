@@ -48,9 +48,6 @@ jobs:
           name: ${{ needs.build.outputs.appname }}-${{ github.sha }}
           path: ${{ needs.build.outputs.appname }}
 
-      - run: echo ${{ steps.download.outputs.download-path }}
-      - run: ls -alR
-
       - id: release
         uses: softprops/action-gh-release@v1
         with:
