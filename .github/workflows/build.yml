@@ -48,9 +48,6 @@ jobs:
           name: ${{ needs.build.outputs.appname }}-${{ github.sha }}
           path: ${{ needs.build.outputs.appname }}
 
-      - run: echo ${{ steps.download.outputs.download-path }}
-      - run: ls -alR
-
       - id: release
         uses: softprops/action-gh-release@v1
         with:
@@ -61,9 +58,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_BRADRF_PAT }}
 
-      - uses: th0th/notify-discord@v0.4.1
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_JOB_NAME: "${{ steps.release.outputs.url }}"
-          GITHUB_JOB_STATUS: ${{ job.status }}
+      - uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          nodetail: true
+          title: "Released ${{ steps.release.outputs.url }}"

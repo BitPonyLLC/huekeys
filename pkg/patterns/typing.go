@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -25,6 +24,7 @@ import (
 type TypingPattern struct {
 	BasePattern
 
+	eventfile    *os.File
 	lastReportAt time.Time
 	lastReadAt   time.Time
 }
@@ -77,19 +77,33 @@ func (p *TypingPattern) run() error {
 	}
 
 	eventpath := "/dev/input/" + inputEventID
-	f, err := os.Open(eventpath)
-	if err != nil {
-		return fmt.Errorf("can't open input events device (%s): %w", eventpath, err)
-	}
 
 	keyPressCount := int32(0)
-	err = keyboard.ColorFileHandler(coldHotColors[0])
+	err := keyboard.ColorFileHandler(coldHotColors[0])
 	if err != nil {
 		return err
 	}
 
 	go p.setColor(&keyPressCount)
-	go p.processTypingEvents(f, &keyPressCount)
+
+	err = p.startTypingProcessor(eventpath, &keyPressCount)
+	if err != nil {
+		return err
+	}
+
+	// defer as a closure to make sure we close the most recently set eventfile
+	defer func() {
+		p.eventfile.Close()
+	}()
+
+	wokeWatcher := util.StartWokeWatch(10*time.Second, time.Second, func(diff time.Duration) {
+		p.log.Warn().Dur("diff", diff).Msg("woke detected: reopening input")
+		err := p.startTypingProcessor(eventpath, &keyPressCount)
+		if err != nil {
+			p.log.Err(err).Msg("typing processor failed to reopen input")
+		}
+	})
+	defer wokeWatcher.Stop()
 
 	<-p.ctx.Done()
 	p.stopRequested = true
@@ -193,13 +207,28 @@ func (p *TypingPattern) setColor(keyPressCount *int32) {
 	}
 }
 
-func (p *TypingPattern) processTypingEvents(eventF io.Reader, keyPressCount *int32) {
+func (p *TypingPattern) startTypingProcessor(eventpath string, keyPressCount *int32) error {
+	if p.eventfile != nil {
+		p.eventfile.Close()
+	}
+
+	var err error
+	p.eventfile, err = os.Open(eventpath)
+	if err != nil {
+		return fmt.Errorf("can't open input events device (%s): %w", eventpath, err)
+	}
+
+	go p.processTypingEvents(keyPressCount)
+	return nil
+}
+
+func (p *TypingPattern) processTypingEvents(keyPressCount *int32) {
 	defer util.LogRecover()
 
 	// https://janczer.github.io/work-with-dev-input/
 	buf := make([]byte, 24)
 	for !p.stopRequested {
-		_, err := eventF.Read(buf)
+		_, err := p.eventfile.Read(buf)
 		if err != nil {
 			p.log.Err(err).Msg("can't read input events device")
 			return
