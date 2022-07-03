@@ -77,7 +77,6 @@ func (p *TypingPattern) run() error {
 	}
 
 	eventpath := "/dev/input/" + inputEventID
-	defer p.eventfile.Close()
 
 	keyPressCount := int32(0)
 	err := keyboard.ColorFileHandler(coldHotColors[0])
@@ -91,6 +90,11 @@ func (p *TypingPattern) run() error {
 	if err != nil {
 		return err
 	}
+
+	// defer as a closure to make sure we close the most recently set eventfile
+	defer func() {
+		p.eventfile.Close()
+	}()
 
 	wokeWatcher := util.StartWokeWatch(10*time.Second, time.Second, func(diff time.Duration) {
 		p.log.Warn().Dur("diff", diff).Msg("woke detected: reopening input")
