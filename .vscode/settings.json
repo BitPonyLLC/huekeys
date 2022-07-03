@@ -3,6 +3,8 @@
         "https://json.schemastore.org/github-workflow.json": "file:///workspaces/huekeys/.github/workflows/build.yml"
     },
     "cSpell.words": [
+        "eventfile",
+        "eventpath",
         "huekeys",
         "sockpath",
         "systray",

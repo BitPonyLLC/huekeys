@@ -132,11 +132,15 @@ func atStart(cmd *cobra.Command, _ []string) error {
 	} else {
 		viper.OnConfigChange(func(e fsnotify.Event) {
 			confLogLevel := viper.GetString("log-level")
-			level, err := zerolog.ParseLevel(confLogLevel)
+			newLevel, err := zerolog.ParseLevel(confLogLevel)
 			if err != nil {
 				log.Err(err).Str("level", confLogLevel).Msg("unable to parse new log level")
 			} else {
-				zerolog.SetGlobalLevel(level)
+				origLevel := zerolog.GlobalLevel()
+				if origLevel != newLevel {
+					zerolog.SetGlobalLevel(newLevel)
+					log.Info().Str("from", origLevel.String()).Str("to", confLogLevel).Msg("log level changed")
+				}
 			}
 		})
 
