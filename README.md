@@ -28,8 +28,10 @@ Huekeys is a fun application that makes it easy to adjust your System76 keyboard
 - Pulse the keyboard brightness up and down.
 - Loop through all the colors of the rainbow.
 - Constantly change the color to a random selection.
-- Change the color according to typing speed (cold to hot)
+- Change the color according to typing speed (cold to hot).
   - Optionally switch to another pattern while typing has stopped for a while!
+- Monitor any external changes to brightness and/or color and reset them.
+  - For example, when waking from sleep, restore set values instead of the system default.
 - And best of all, manage it from a convenient system tray interface!
 
   ![systray menu](img/menu-small.png)
@@ -64,7 +66,7 @@ After installation, note the following:
     $ sudo apt install libayatana-appindicator3-1
     ```
 - The device access `huekeys` uses to change the keyboard color, brightness, or to monitor typing, all require root privileges. As such, you must either run with `sudo` or modify the permissions of the devices.
-  - If you want to modify the device permissions, you can do something like the following (depending on your own setup), but **TAKE NOTE** that it will not survive a reboot (the permissions will revert to root-only):
+  - If you want to modify the device permissions, you can do something like the following (depending on your own setup), but **NOTE** that it will not survive a reboot (the permissions will revert to root-only):
     ```sh
     $ ( cd /sys/class/leds/system76*\:\:kbd_backlight && \
         sudo chgrp adm color* brightness && \
@@ -111,6 +113,10 @@ Optionally, you can also open the _Info_ section to see the currently set color 
 
 To temporarily stop a pattern, select the _Pause_ item, or, to completely turn the keyboard lights off, select _Off_.
 
+> **NOTE:**
+>
+> Huekeys can be automaticallly started when you log in by setting the `autostart` value in the **Menu Key** [Configuration section below](#configuration). You should also consider setting the permissions prompt `delay`.
+
 ### Remote Control
 
 When there's a background "wait" process running, you can use `huekeys` to coordinate changes from the command line, too. For example, when running `get` you'll note that, in addition to telling you about the current color and brightness values, it also indicates what current color pattern is running. Likewise, most commands will coordinate with the background process, allowing you to use `huekeys run` to change the current pattern, or even `huekeys quit` to stop the background process.
@@ -125,7 +131,9 @@ $ huekeys --dump-config > ~/.huekeys
 
 Feel free to change the values to better suit your preferences.
 
-**NOTE:** The configuration file is monitored and when changed, most values will be adjusted in any live running process (e.g. you can change the log level without restarting the process).
+> **NOTE:**
+>
+> The configuration file is monitored and when changed, most values will be adjusted in any live running process (e.g. you can change the log level without restarting the process).
 
 |       Global&nbsp;Key       | Default  | Acceptable Values                                                                                                                          | Description                                                                                                                  |
 | :-------------------------: | :------: | :----------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
