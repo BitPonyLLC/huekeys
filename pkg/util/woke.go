@@ -2,6 +2,7 @@ package util
 
 import "time"
 
+// Woke is a utility to help know when a process was suspended for some amount of time.
 type Woke struct {
 	delay   time.Duration
 	diffMin time.Duration
@@ -9,8 +10,12 @@ type Woke struct {
 	stop    chan bool
 }
 
+// WokeFunc is the callback invoked when a time lapse is detected.
 type WokeFunc func(diff time.Duration)
 
+// StartWokeWatch begins watching for conditions indicating when a time lapse
+// has occurred. It will invoke onWake when the time difference detected is
+// larger than diffMin, checking for lapses once every delay.
 func StartWokeWatch(delay time.Duration, diffMin time.Duration, onWake WokeFunc) *Woke {
 	w := &Woke{
 		delay:   delay,
@@ -24,9 +29,13 @@ func StartWokeWatch(delay time.Duration, diffMin time.Duration, onWake WokeFunc)
 	return w
 }
 
+// Stop will terminate the watcher (if running).
 func (w *Woke) Stop() {
 	w.stop <- true
 }
+
+//--------------------------------------------------------------------------------
+// private
 
 func (w *Woke) start() {
 	for {
