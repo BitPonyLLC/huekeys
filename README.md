@@ -141,42 +141,42 @@ Feel free to change the values to better suit your preferences.
 | <code>log&#x2011;lvl</code> |  'info'  | <ul><li>'trace'</li><li>'debug'</li><li>'info'</li><li>'warn'</li><li>'error'</li><li>'fatal'</li><li>'panic'</li><li>'disabled'</li></ul> | Indicate level of logging.                                                                                                   |
 |           `nice`            |    10    | -20 to 19                                                                                                                                  | Run with an adjusted priority, values range from -20 (most favorable to the process) to 19 (least favorable to the process). |
 
-| Menu&nbsp;Key |         Default         | Acceptable Values                                                           | Description                                                                                |
-| :-----------: | :---------------------: | :-------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------- |
-|  `autostart`  |          false          | <ul><li>true</li><li>false</li></ul>                                        | Indicate if huekeys menu should automatically start upon login.                            |
-|    `delay`    |          '0s'           | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait before asking for a password to run the wait background process. |
-|   `pattern`   |           ''            | Any pattern name (see `huekeys run`)                                        | Indicate the pattern to begin when the menu is launched.                                   |
-|   `pidpath`   | '/tmp/huekeys-menu.pid' | '/path/to/file.pid'                                                         | Indicate where to store the process ID of the menu process.                                |
+| Menu&nbsp;Key |         Default         | Acceptable Values                                          | Description                                                                                |
+| :-----------: | :---------------------: | :--------------------------------------------------------- | :----------------------------------------------------------------------------------------- |
+|  `autostart`  |          false          | <ul><li>true</li><li>false</li></ul>                       | Indicate if huekeys menu should automatically start upon login.                            |
+|    `delay`    |          '0s'           | See [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait before asking for a password to run the wait background process. |
+|   `pattern`   |           ''            | Any pattern name (see `huekeys run`)                       | Indicate the pattern to begin when the menu is launched.                                   |
+|   `pidpath`   | '/tmp/huekeys-menu.pid' | '/path/to/file.pid'                                        | Indicate where to store the process ID of the menu process.                                |
 
-| CPU&nbsp;Key | Default | Acceptable Values                                                           | Description                                                                           |
-| :----------: | :-----: | :-------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
-|   `delay`    |  '1s'   | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates based on the current CPU utilization. |
+| CPU&nbsp;Key | Default | Acceptable Values                                          | Description                                                                           |
+| :----------: | :-----: | :--------------------------------------------------------- | :------------------------------------------------------------------------------------ |
+|   `delay`    |  '1s'   | See [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates based on the current CPU utilization. |
 
-| Pulse&nbsp;Key | Default | Acceptable Values                                                           | Description                                                                 |
-| :------------: | :-----: | :-------------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
-|    `delay`     | '25ms'  | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates of the keyboard brightness. |
+| Pulse&nbsp;Key | Default | Acceptable Values                                          | Description                                                                 |
+| :------------: | :-----: | :--------------------------------------------------------- | :-------------------------------------------------------------------------- |
+|    `delay`     | '25ms'  | See [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates of the keyboard brightness. |
 
-| Rainbow&nbsp;Key | Default | Acceptable Values                                                           | Description                                      |
-| :--------------: | :-----: | :-------------------------------------------------------------------------- | :----------------------------------------------- |
-|     `delay`      |  '1ms'  | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates. |
+| Rainbow&nbsp;Key | Default | Acceptable Values                                          | Description                                      |
+| :--------------: | :-----: | :--------------------------------------------------------- | :----------------------------------------------- |
+|     `delay`      |  '1ms'  | See [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates. |
 
-| Random&nbsp;Key | Default | Acceptable Values                                                           | Description                                      |
-| :-------------: | :-----: | :-------------------------------------------------------------------------- | :----------------------------------------------- |
-|     `delay`     |  '1s'   | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates. |
+| Random&nbsp;Key | Default | Acceptable Values                                          | Description                                      |
+| :-------------: | :-----: | :--------------------------------------------------------- | :----------------------------------------------- |
+|     `delay`     |  '1s'   | See [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates. |
 
-|              Typing&nbsp;Key              | Default | Acceptable Values                                                           | Description                                                                                                                                   |
-| :---------------------------------------: | :-----: | :-------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- |
-|                `all-keys`                 |  false  | <ul><li>true</li><li>false</li></ul>                                        | Indicate if typing should monitor any keypress (default is to watch only "printable" characters and ignore "control" keypresses).             |
-|                  `delay`                  | '300ms' | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates based on the rate (and type) of keys being pressed.                                           |
-|                  `idle`                   |   ''    | Any pattern name (see `huekeys run`)                                        | Indicate the pattern to begin when keys have not been pressed for the configured `idle-period`.                                               |
-|      <code>idle&#x2011;period</code>      |  '30s'  | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate the amount of time to wait between the last key press and when the `idle` pattern is started.                                        |
-| <code>input&#x2011;event&#x2011;id</code> |   ''    |                                                                             | Indicate which input device to use for monitoring the keystrokes (default is to find the first keyboard listed in `/proc/bus/input/devices`). |
+|              Typing&nbsp;Key              | Default | Acceptable Values                                          | Description                                                                                                                                   |
+| :---------------------------------------: | :-----: | :--------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- |
+|                `all-keys`                 |  false  | <ul><li>true</li><li>false</li></ul>                       | Indicate if typing should monitor any keypress (default is to watch only "printable" characters and ignore "control" keypresses).             |
+|                  `delay`                  | '300ms' | See [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates based on the rate (and type) of keys being pressed.                                           |
+|                  `idle`                   |   ''    | Any pattern name (see `huekeys run`)                       | Indicate the pattern to begin when keys have not been pressed for the configured `idle-period`.                                               |
+|      <code>idle&#x2011;period</code>      |  '30s'  | See [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate the amount of time to wait between the last key press and when the `idle` pattern is started.                                        |
+| <code>input&#x2011;event&#x2011;id</code> |   ''    |                                                            | Indicate which input device to use for monitoring the keystrokes (default is to find the first keyboard listed in `/proc/bus/input/devices`). |
 
-| Wait&nbsp;Key |         Default          | Acceptable Values                                                           | Description                                                                                        |
-| :-----------: | :----------------------: | :-------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
-|   `monitor`   |           '0s'           | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate when to monitor changes made to color/brightness outside of the wait process.             |
-|   `pidpath`   | '/tmp/huekeys-wait.pid'  | '/path/to/file.pid'                                                         | Indicate where to store the process ID of the wait process.                                        |
-|  `sockpath`   | '/tmp/huekeys-wait.sock' | '/path/to/file.sock'                                                        | Indicate where to create the socket file (needed for menu to communicate with background process). |
+| Wait&nbsp;Key |         Default          | Acceptable Values                                          | Description                                                                                        |
+| :-----------: | :----------------------: | :--------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+|   `monitor`   |           '0s'           | See [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate when to monitor changes made to color/brightness outside of the wait process.             |
+|   `pidpath`   | '/tmp/huekeys-wait.pid'  | '/path/to/file.pid'                                        | Indicate where to store the process ID of the wait process.                                        |
+|  `sockpath`   | '/tmp/huekeys-wait.sock' | '/path/to/file.sock'                                       | Indicate where to create the socket file (needed for menu to communicate with background process). |
 
 ## Attribution
 
