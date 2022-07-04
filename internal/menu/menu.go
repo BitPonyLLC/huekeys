@@ -80,6 +80,11 @@ const (
 	end
 )
 
+// GetIcon returns the embedded icon used for the "enabled" ("on") menu.
+func GetIcon() []byte {
+	return trayIconOn
+}
+
 // Add will create a menu item with the provided name displayed and will send
 // the provided msg over the IPC client.
 func (m *Menu) Add(name string, msg string) {

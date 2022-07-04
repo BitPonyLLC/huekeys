@@ -23,7 +23,6 @@ import (
 
 var patternName string
 var menuPidPath *pidpath.PidPath
-var delay = time.Duration(0)
 var restarting = false
 
 func init() {
@@ -34,7 +33,8 @@ func init() {
 	menuCmd.Flags().String("pidpath", defaultPidPath, "pathname of the menu pidfile")
 	viper.BindPFlag("menu.pidpath", menuCmd.Flags().Lookup("pidpath"))
 
-	menuCmd.Flags().DurationVar(&delay, "delay", delay, "delay before asking for sudo permission")
+	menuCmd.Flags().Duration("delay", 0, "delay before asking for sudo permission")
+	viper.BindPFlag("menu.delay", menuCmd.Flags().Lookup("delay"))
 
 	rootCmd.AddCommand(menuCmd)
 }
@@ -117,6 +117,7 @@ func ensureWaitRunning(cmd *cobra.Command) error {
 		return nil
 	}
 
+	delay := viper.GetDuration("menu.delay")
 	if delay > time.Second {
 		log.Debug().Dur("delay", delay).Msg("waiting")
 	}
@@ -183,14 +184,14 @@ func ensureWaitRunning(cmd *cobra.Command) error {
 	}()
 
 	// wait for user to grant permission to run...
-	const delay = 50 * time.Millisecond
+	const wait = 50 * time.Millisecond
 	sockPath := waitSockPath()
-	for timeout := time.Minute; timeout > 0; timeout -= delay {
+	for timeout := time.Minute; timeout > 0; timeout -= wait {
 		if subCmdErr != nil {
 			return subCmdErr
 		}
 
-		time.Sleep(delay)
+		time.Sleep(wait)
 		_, err := os.Stat(sockPath)
 		if err == nil {
 			return nil

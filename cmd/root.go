@@ -11,13 +11,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"text/template"
 
 	"github.com/BitPonyLLC/huekeys/buildinfo"
+	"github.com/BitPonyLLC/huekeys/internal/menu"
 	"github.com/BitPonyLLC/huekeys/pkg/ipc"
 	"github.com/BitPonyLLC/huekeys/pkg/keyboard"
 	"github.com/BitPonyLLC/huekeys/pkg/pidpath"
 	"github.com/BitPonyLLC/huekeys/pkg/termwrap"
+	"github.com/BitPonyLLC/huekeys/pkg/util"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog"
@@ -78,9 +79,17 @@ func Execute() int {
 //--------------------------------------------------------------------------------
 // private
 
+type extractData struct {
+	buildinfo.AppInfo
+	IconPath string
+}
+
 const logDstLabel = "log-dst"
 const minimalTimeFormat = "15:04:05.000"
 const policyConfigPath = "/usr/share/polkit-1/actions"
+
+//go:embed huekeys.desktop
+var desktopTemplate string
 
 //go:embed pkexec_policy.xml
 var policyConfigTemplate string
@@ -153,7 +162,7 @@ func atStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	log.Debug().Str("file", viper.ConfigFileUsed()).Msg("config")
-	return checkPolicyConfig()
+	return extractFiles()
 }
 
 func atExit() {
@@ -233,52 +242,37 @@ func setupLogging(cmd *cobra.Command, logDst string) error {
 	return nil
 }
 
-func checkPolicyConfig() error {
-	if os.Getuid() != 0 {
-		return nil
+func extractFiles() error {
+	if os.Getuid() == 0 {
+		policyPath := filepath.Join(policyConfigPath, buildinfo.App.ReverseDNS+".policy")
+		return util.Extract(policyPath, []byte(policyConfigTemplate), buildinfo.App)
 	}
 
-	policyPath := filepath.Join(policyConfigPath, buildinfo.App.ReverseDNS+".policy")
-	cfgF, err := os.OpenFile(policyPath, os.O_RDWR|os.O_CREATE, 0644)
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("unable to open %s: %w", policyPath, err)
+		return fmt.Errorf("unable to get user home directory: %w", err)
 	}
-	defer cfgF.Close()
 
-	policyStat, err := cfgF.Stat()
+	localDataDir := filepath.Join(homeDir, ".local", "share")
+	appDataDir := filepath.Join(localDataDir, buildinfo.App.Name)
+
+	err = os.MkdirAll(appDataDir, 0755)
 	if err != nil {
-		return fmt.Errorf("unable to stat %s: %w", policyPath, err)
+		return fmt.Errorf("unable to create %s: %w", appDataDir, err)
 	}
 
-	if policyStat.Size() > 0 {
-		exeStat, err := os.Stat(buildinfo.App.ExePath)
-		if err != nil {
-			return fmt.Errorf("unable to stat %s: %w", buildinfo.App.ExePath, err)
-		}
-
-		if exeStat.ModTime().Before(policyStat.ModTime()) {
-			log.Debug().Str("policy", policyPath).Msg("unchanged")
-			return nil
-		}
+	tmplData := &extractData{
+		AppInfo:  buildinfo.App,
+		IconPath: filepath.Join(appDataDir, "icon.png"),
 	}
 
-	err = cfgF.Truncate(0)
+	err = util.Extract(tmplData.IconPath, menu.GetIcon(), nil)
 	if err != nil {
-		return fmt.Errorf("unable to truncate %s: %w", policyPath, err)
+		return err
 	}
 
-	tmpl, err := template.New("policy-config").Parse(policyConfigTemplate)
-	if err != nil {
-		return fmt.Errorf("unable to parse policy template: %w", err)
-	}
-
-	err = tmpl.Execute(cfgF, buildinfo.App)
-	if err != nil {
-		return fmt.Errorf("unable to execute policy template: %w", err)
-	}
-
-	log.Debug().Str("policy", policyPath).Msg("updated")
-	return nil
+	desktopPath := filepath.Join(localDataDir, "applications", buildinfo.App.Name+".desktop")
+	return util.Extract(desktopPath, []byte(desktopTemplate), tmplData)
 }
 
 func fail(code int, formatOrErr interface{}, args ...interface{}) error {

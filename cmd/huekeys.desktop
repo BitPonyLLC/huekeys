@@ -1,0 +1,10 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Version=1.5
+Terminal=false
+Type=Application
+Name={{ .Name }}
+Comment={{ .Description }}
+Categories=Utility
+Exec={{ .ExePath }} menu
+Icon={{ .IconPath }}
