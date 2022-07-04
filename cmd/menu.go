@@ -36,6 +36,8 @@ func init() {
 	menuCmd.Flags().Duration("delay", 0, "delay before asking for sudo permission")
 	viper.BindPFlag("menu.delay", menuCmd.Flags().Lookup("delay"))
 
+	viper.SetDefault("menu.autostart", false)
+
 	rootCmd.AddCommand(menuCmd)
 }
 

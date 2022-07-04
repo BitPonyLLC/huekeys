@@ -125,7 +125,7 @@ $ huekeys --dump-config > ~/.huekeys
 
 Feel free to change the values to better suit your preferences.
 
-NOTE: The configuration file is monitored and when changed, most values will be adjusted in any live running process (e.g. you can change the log level without restarting the process).
+**NOTE:** The configuration file is monitored and when changed, most values will be adjusted in any live running process (e.g. you can change the log level without restarting the process).
 
 |       Global&nbsp;Key       | Default  | Acceptable Values                                                                                                                          | Description                                                                                                                  |
 | :-------------------------: | :------: | :----------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
@@ -133,10 +133,12 @@ NOTE: The configuration file is monitored and when changed, most values will be 
 | <code>log&#x2011;lvl</code> |  'info'  | <ul><li>'trace'</li><li>'debug'</li><li>'info'</li><li>'warn'</li><li>'error'</li><li>'fatal'</li><li>'panic'</li><li>'disabled'</li></ul> | Indicate level of logging.                                                                                                   |
 |           `nice`            |    10    | -20 to 19                                                                                                                                  | Run with an adjusted priority, values range from -20 (most favorable to the process) to 19 (least favorable to the process). |
 
-| Menu&nbsp;Key |         Default         | Acceptable Values                    | Description                                                 |
-| :-----------: | :---------------------: | :----------------------------------- | :---------------------------------------------------------- |
-|   `pattern`   |           ''            | Any pattern name (see `huekeys run`) | Indicate the pattern to begin when the menu is launched.    |
-|   `pidpath`   | '/tmp/huekeys-menu.pid' | '/path/to/file.pid'                  | Indicate where to store the process ID of the menu process. |
+| Menu&nbsp;Key |         Default         | Acceptable Values                                                           | Description                                                                                |
+| :-----------: | :---------------------: | :-------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------- |
+|  `autostart`  |          false          | <ul><li>true</li><li>false</li></ul>                                        | Indicate if huekeys menu should automatically start upon login.                            |
+|    `delay`    |          '0s'           | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait before asking for a password to run the wait background process. |
+|   `pattern`   |           ''            | Any pattern name (see `huekeys run`)                                        | Indicate the pattern to begin when the menu is launched.                                   |
+|   `pidpath`   | '/tmp/huekeys-menu.pid' | '/path/to/file.pid'                                                         | Indicate where to store the process ID of the menu process.                                |
 
 | CPU&nbsp;Key | Default | Acceptable Values                                                           | Description                                                                           |
 | :----------: | :-----: | :-------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
@@ -156,8 +158,8 @@ NOTE: The configuration file is monitored and when changed, most values will be 
 
 |              Typing&nbsp;Key              | Default | Acceptable Values                                                           | Description                                                                                                                                   |
 | :---------------------------------------: | :-----: | :-------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- |
-|                  `delay`                  | '300ms' | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates based on the rate (and type) of keys being pressed.                                           |
 |                `all-keys`                 |  false  | <ul><li>true</li><li>false</li></ul>                                        | Indicate if typing should monitor any keypress (default is to watch only "printable" characters and ignore "control" keypresses).             |
+|                  `delay`                  | '300ms' | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate how long to wait between color updates based on the rate (and type) of keys being pressed.                                           |
 |                  `idle`                   |   ''    | Any pattern name (see `huekeys run`)                                        | Indicate the pattern to begin when keys have not been pressed for the configured `idle-period`.                                               |
 |      <code>idle&#x2011;period</code>      |  '30s'  | Anything accepted by [ParseDuration](https://pkg.go.dev/time#ParseDuration) | Indicate the amount of time to wait between the last key press and when the `idle` pattern is started.                                        |
 | <code>input&#x2011;event&#x2011;id</code> |   ''    |                                                                             | Indicate which input device to use for monitoring the keystrokes (default is to find the first keyboard listed in `/proc/bus/input/devices`). |

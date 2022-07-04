@@ -271,8 +271,25 @@ func extractFiles() error {
 		return err
 	}
 
-	desktopPath := filepath.Join(localDataDir, "applications", buildinfo.App.Name+".desktop")
-	return util.Extract(desktopPath, []byte(desktopTemplate), tmplData)
+	desktopName := buildinfo.App.Name + ".desktop"
+	desktopPath := filepath.Join(localDataDir, "applications", desktopName)
+
+	err = util.Extract(desktopPath, []byte(desktopTemplate), tmplData)
+	if err != nil {
+		return err
+	}
+
+	if viper.GetBool("menu.autostart") {
+		autostartDir := filepath.Join(homeDir, ".config", "autostart")
+		err = os.MkdirAll(autostartDir, 0755)
+		if err != nil {
+			return fmt.Errorf("unable to create %s: %w", autostartDir, err)
+		}
+
+		util.Extract(filepath.Join(autostartDir, desktopName), []byte(desktopTemplate), tmplData)
+	}
+
+	return nil
 }
 
 func fail(code int, formatOrErr interface{}, args ...interface{}) error {
