@@ -286,7 +286,15 @@ func extractFiles() error {
 			return fmt.Errorf("unable to create %s: %w", autostartDir, err)
 		}
 
-		util.Extract(filepath.Join(autostartDir, desktopName), []byte(desktopTemplate), tmplData)
+		autostartPath := filepath.Join(autostartDir, desktopName)
+		err = os.Symlink(desktopPath, autostartPath)
+		if err != nil {
+			if os.IsExist(err) {
+				return nil
+			}
+
+			return fmt.Errorf("unable to create %s: %w", autostartPath, err)
+		}
 	}
 
 	return nil
