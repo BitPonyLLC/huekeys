@@ -248,6 +248,11 @@ func extractFiles() error {
 		return util.Extract(policyPath, []byte(policyConfigTemplate), buildinfo.App)
 	}
 
+	if os.Getenv("XDG_CURRENT_DESKTOP") == "" {
+		// only install desktop files when running within a desktop session
+		return nil
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("unable to get user home directory: %w", err)
