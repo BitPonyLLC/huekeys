@@ -271,8 +271,14 @@ func extractFiles() error {
 		return err
 	}
 
+	appsDir := filepath.Join(localDataDir, "applications")
+	err = os.MkdirAll(appsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("unable to create %s: %w", appsDir, err)
+	}
+
 	desktopName := buildinfo.App.Name + ".desktop"
-	desktopPath := filepath.Join(localDataDir, "applications", desktopName)
+	desktopPath := filepath.Join(appsDir, desktopName)
 
 	err = util.Extract(desktopPath, []byte(desktopTemplate), tmplData)
 	if err != nil {

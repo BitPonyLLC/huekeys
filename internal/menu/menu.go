@@ -129,7 +129,12 @@ func (m *Menu) Show(ctx context.Context, log *zerolog.Logger, sockPath string) e
 	m.quitItem = systray.AddMenuItem("Quit", "")
 
 	go m.watch()
-	defer func() { m.client.Close() }() // can't immediately defer m.client.Close since it's not set
+	// can't immediately defer m.client.Close since it's not set
+	defer func() {
+		if m.client != nil {
+			m.client.Close()
+		}
+	}()
 
 	if m.PatternName != "" {
 		_, err := ipc.Send(m.sockpath, "run "+m.PatternName)

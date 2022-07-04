@@ -8,6 +8,9 @@ VERSION = $(strip $(shell git describe --tags --abbrev=0 --dirty --always))
 COMMITHASH = $(strip $(shell git rev-parse --short HEAD))
 BUILDTIME = $(strip $(shell date -u +%Y-%m-%dT%H:%M:%SZ))
 
+test: build
+	./$(APPNAME) set list >/dev/null
+
 build: $(CNAMESFN) $(APPNAME)
 
 $(APPNAME): $(shell find -name '*.go')

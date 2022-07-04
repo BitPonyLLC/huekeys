@@ -119,6 +119,9 @@ func ensureWaitRunning(cmd *cobra.Command) error {
 		return nil
 	}
 
+	sockPath := waitSockPath()
+	os.Remove(sockPath)
+
 	delay := viper.GetDuration("menu.delay")
 	if delay > time.Second {
 		log.Debug().Dur("delay", delay).Msg("waiting")
@@ -187,7 +190,6 @@ func ensureWaitRunning(cmd *cobra.Command) error {
 
 	// wait for user to grant permission to run...
 	const wait = 50 * time.Millisecond
-	sockPath := waitSockPath()
 	for timeout := time.Minute; timeout > 0; timeout -= wait {
 		if subCmdErr != nil {
 			return subCmdErr
